@@ -34,7 +34,7 @@ The bridge does not add a JavaScript OpenTelemetry SDK, a second telemetry
 pipeline, arbitrary or vendor attributes, metrics, automatic navigation
 telemetry, JavaScript exception interception, or source map processing.
 
-EDOT Android's crash plugin and EDOT iOS 1.4.0's native crash reporting
+EDOT Android's crash plugin and EDOT iOS's native crash reporting
 default own crash capture. The bridge does not add a JavaScript-only crash
 toggle or attempt to equalize native SDK ownership by intercepting JavaScript
 failures.

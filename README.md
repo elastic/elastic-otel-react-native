@@ -138,10 +138,9 @@ preserving the original handler's arguments, receiver, return, throw, promise,
 and invocation count.
 
 `app.widget.click`, `app.widget.id`, and `app.widget.name` are Development
-OpenTelemetry semantic conventions. Both native implementations carry
-`otel.event.name` for export compatibility. EDOT iOS 1.4.0's upstream
-OpenTelemetry dependency also represents the event through `event.name` and
-`event.domain`.
+OpenTelemetry semantic conventions. Both native implementations set the
+top-level EventRecord name and carry `otel.event.name` for export
+compatibility.
 
 ## Validate
 

@@ -30,10 +30,9 @@ final class InteractionTelemetry {
       .loggerBuilder(
         instrumentationScopeName: interactionInstrumentationScope
       )
-      .setEventDomain("app")
-      .setIncludeTraceContext(false)
       .build()
-      .eventBuilder(name: widgetClickEventName)
+      .logRecordBuilder()
+      .setEventName(widgetClickEventName)
       .setTimestamp(try BridgeInput.eventTimestamp(timestamp))
       .setSpanContext(Self.invalidSpanContext)
       .setAttributes(attributes)

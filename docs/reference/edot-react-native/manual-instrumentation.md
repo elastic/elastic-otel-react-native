@@ -140,7 +140,7 @@ interaction occurs.
 The result is an OpenTelemetry event named `app.widget.click`, using
 scope `@elastic/otel-react-native.interactions`, required `app.widget.id`, and
 optional `app.widget.name`. It has no log body or implicit span context. EDOT
-Android and EDOT iOS 1.4.0 both emit the standard compatibility attribute
-`otel.event.name=app.widget.click`. The iOS upstream event API also emits
-`event.name=app.widget.click` and `event.domain=app`. The semantic convention is
-currently Development.
+Android and EDOT iOS both set the top-level EventRecord name `app.widget.click`
+and emit the standard compatibility attribute
+`otel.event.name=app.widget.click`. The semantic convention is currently
+Development.

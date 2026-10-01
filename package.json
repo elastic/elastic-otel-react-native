@@ -58,9 +58,9 @@
     "fixture:ios:build": "node scripts/build-ios-fixture.mjs",
     "fixture:typecheck": "tsc --project build/external-fixture/tsconfig.json --noEmit",
     "fixture:verify-autolinking": "node scripts/verify-fixture-autolinking.mjs",
-    "edot-android:check": "node scripts/check-edot-android-version.mjs",
+    "edot:check": "node scripts/check-edot-versions.mjs",
     "lockfile:check": "node scripts/check-lockfiles.mjs",
-    "validate": "npm run edot-android:check && npm run lockfile:check && npm run format:check && npm run typecheck && npm run build:types && npm test && npm run android:test && npm run ios:test && npm run setup:test && npm run setup:ios:test && npm run fixture:typecheck && npm run docs:check && npm run pack:check && npm run fixture:build && npm run fixture:ios:build && npm run fixture:verify-autolinking"
+    "validate": "npm run edot:check && npm run lockfile:check && npm run format:check && npm run typecheck && npm run build:types && npm test && npm run android:test && npm run ios:test && npm run setup:test && npm run setup:ios:test && npm run fixture:typecheck && npm run docs:check && npm run pack:check && npm run fixture:build && npm run fixture:ios:build && npm run fixture:verify-autolinking"
   },
   "peerDependencies": {
     "react": "*",

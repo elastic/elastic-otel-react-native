@@ -128,11 +128,11 @@ final class TelemetryTests: XCTestCase {
       record.instrumentationScopeInfo.name,
       interactionInstrumentationScope
     )
+    XCTAssertEqual(record.eventName, widgetClickEventName)
     XCTAssertEqual(
-      record.attributes["event.name"],
-      .string(widgetClickEventName)
+      Set(record.attributes.keys),
+      ["otel.event.name", "app.widget.id", "app.widget.name"]
     )
-    XCTAssertEqual(record.attributes["event.domain"], .string("app"))
     XCTAssertEqual(
       record.attributes["otel.event.name"],
       .string(widgetClickEventName)
