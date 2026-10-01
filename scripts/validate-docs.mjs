@@ -3,8 +3,10 @@ import { dirname, extname, join, normalize, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { PLUGINS } from '../bin/elastic-otel-react-native.mjs';
+import { readEdotIosVersion } from './check-edot-versions.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const EDOT_IOS_VERSION = await readEdotIosVersion();
 const REQUIRED = [
   'docs/docset.yml',
   'docs/redirects.yml',
@@ -175,11 +177,11 @@ for (const [component, version] of [
   ['Kotlin', '2.2.0'],
   ['JDK', 'Amazon Corretto 21.0.9'],
   ['Android API', 'compile 37 / target 36 / minimum 26'],
-  // The EDOT Android row is checked by scripts/check-edot-android-version.mjs.
+  // The EDOT Android row is checked by scripts/check-edot-versions.mjs.
   ['Xcode', '27.0'],
   ['CocoaPods', '1.16.2'],
   ['iOS deployment target', '16.0'],
-  ['EDOT iOS', '1.4.0 (`ElasticApm` SwiftPM product)'],
+  ['EDOT iOS', `${EDOT_IOS_VERSION} (\`ElasticApm\` SwiftPM product)`],
 ]) {
   if (testedVersionRows.get(component) !== version) {
     throw new Error(

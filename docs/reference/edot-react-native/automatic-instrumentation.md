@@ -56,10 +56,9 @@ and throw behavior, returned promises, and invocation count are preserved.
 Native code emits an OpenTelemetry event named `app.widget.click` with
 instrumentation scope `@elastic/otel-react-native.interactions`, required
 `app.widget.id`, optional `app.widget.name`, no ordinary log body, and no
-implicit span context. Both implementations record
-`otel.event.name=app.widget.click` for export compatibility. EDOT Android
-also retains the top-level EventRecord name through persistence and export. EDOT iOS 1.4.0's upstream OpenTelemetry event API represents the same
-event through legacy `event.name` and `event.domain` attributes.
+implicit span context. Both implementations set the top-level EventRecord name
+`app.widget.click`, retain it through persistence and export, and record
+`otel.event.name=app.widget.click` for export compatibility.
 
 `app.widget.click` is currently a Development semantic convention and can
 change in a future OpenTelemetry release.
@@ -77,7 +76,7 @@ produces spans.
 
 On Android, automatic spans are limited to requests passing through an OkHttp
 client compatible with EDOT Android's OkHttp instrumentation. On iOS, URLSession
-coverage is owned by EDOT iOS 1.4.0. Validate representative application
+coverage is owned by EDOT iOS. Validate representative application
 requests on both platforms.
 
 The package does not add automatic React Navigation, Redux, JavaScript fetch,

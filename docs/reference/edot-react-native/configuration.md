@@ -92,7 +92,7 @@ decision.
 `serviceName` is required and must not be blank. Use a stable name that
 identifies the mobile application as the telemetry-producing service.
 
-EDOT iOS 1.4.0 exposes service-name override through
+EDOT iOS exposes service-name override through
 `OTEL_RESOURCE_ATTRIBUTES`. Its public parser separates entries on commas and
 key/value pairs on equals signs, so the iOS bridge rejects service names
 containing `,` or `=` rather than exporting a different value. Other existing
@@ -128,7 +128,7 @@ On Android, the EDOT Android crash plugin records uncaught JVM exceptions as
 `app.crash` log records and exports them on the next launch. In a release
 build, React Native surfaces an uncaught JavaScript error as a
 `com.facebook.react.common.JavascriptException` that terminates the process, so
-EDOT Android records it like any other JVM crash. EDOT iOS 1.4.0 enables native
+EDOT Android records it like any other JVM crash. EDOT iOS enables native
 crash reporting by default and owns persistence and next-launch export. The
 bridge does not expose a JavaScript-only crash toggle, intercept JavaScript
 fatal errors, or claim that rejected promises are native crashes.

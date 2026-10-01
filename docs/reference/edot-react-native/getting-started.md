@@ -26,7 +26,7 @@ This table is the canonical record of tested versions.
 | Xcode                 | 27.0                                        |
 | CocoaPods             | 1.16.2                                      |
 | iOS deployment target | 16.0                                        |
-| EDOT iOS              | 1.4.0 (`ElasticApm` SwiftPM product)        |
+| EDOT iOS              | 2.1.0 (`ElasticApm` SwiftPM product)        |
 
 Stock React Native applications from 0.80 on also build with this package.
 React Native 0.80.3, 0.81.6, 0.83.10, 0.85.3, and 0.86.0 build a release APK
@@ -35,11 +35,11 @@ on an API 26 emulator. The iOS app builds on React Native 0.83.10 and 0.85.3.
 On React Native 0.80 and 0.81, Xcode 27 fails in React Native's own `fmt` pod,
 with or without this package.
 
-EDOT iOS 1.4.0 is distributed only through Swift Package Manager, declares iOS
-16, and publishes the static `ElasticApm` product. The package podspec pins that
-exact release through React Native's supported `spm_dependency`
-integration with the public GitHub URL, so npm installations do not depend on a
-sibling checkout.
+The tested EDOT iOS release is distributed only through Swift Package Manager,
+declares iOS 16, and publishes the static `ElasticApm` product. The package
+podspec pins that exact release through React Native's supported
+`spm_dependency` integration with the public GitHub URL, so npm installations
+do not depend on a sibling checkout.
 
 ## Supported configuration
 
@@ -118,7 +118,7 @@ multiple Xcode projects.
 EDOT iOS needs two manual steps:
 
 - Set the Podfile platform and every application deployment target in Xcode
-  to iOS 16 or later. EDOT iOS 1.4.0 declares iOS 16. Below that, Xcode stops
+  to iOS 16 or later. EDOT iOS declares iOS 16. Below that, Xcode stops
   with `compiling for iOS 15.1, but module 'ElasticOtelReactNative' has a
 minimum deployment target of iOS 16.0`.
 - Install pods with dynamic frameworks. The package podspec attaches EDOT iOS

@@ -17,11 +17,11 @@ let package = Package(
   dependencies: [
     .package(
       url: "https://github.com/elastic/apm-agent-ios.git",
-      exact: "1.4.0"
+      exact: "2.1.0"
     ),
     .package(
-      url: "https://github.com/open-telemetry/opentelemetry-swift",
-      exact: "1.17.0"
+      url: "https://github.com/open-telemetry/opentelemetry-swift-core",
+      from: "2.3.0"
     ),
   ],
   targets: [
@@ -31,7 +31,7 @@ let package = Package(
         .product(name: "ElasticApm", package: "apm-agent-ios"),
         .product(
           name: "OpenTelemetryApi",
-          package: "opentelemetry-swift"
+          package: "opentelemetry-swift-core"
         ),
       ],
       path: "Sources",
@@ -46,7 +46,7 @@ let package = Package(
         "ElasticOtelReactNativeCore",
         .product(
           name: "OpenTelemetrySdk",
-          package: "opentelemetry-swift"
+          package: "opentelemetry-swift-core"
         ),
       ],
       path: "Tests"
