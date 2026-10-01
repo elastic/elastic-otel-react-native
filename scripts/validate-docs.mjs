@@ -1,0 +1,231 @@
+import { readFile } from 'node:fs/promises';
+import { dirname, extname, join, normalize, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+import { PLUGINS } from '../bin/elastic-otel-react-native.mjs';
+
+const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const REQUIRED = [
+  'docs/docset.yml',
+  'docs/redirects.yml',
+  'docs/reference/edot-react-native/toc.yml',
+  'docs/reference/edot-react-native/index.md',
+  'docs/reference/edot-react-native/getting-started.md',
+  'docs/reference/edot-react-native/configuration.md',
+  'docs/reference/edot-react-native/automatic-instrumentation.md',
+  'docs/reference/edot-react-native/manual-instrumentation.md',
+  'docs/release-notes/toc.yml',
+  'docs/release-notes/index.md',
+  'docs/release-notes/known-issues.md',
+];
+const MARKDOWN = [
+  'README.md',
+  ...REQUIRED.filter((path) => path.endsWith('.md')),
+];
+const ALLOWED_BRIDGE_EXPORTS = new Set([
+  'emitLog',
+  'endSpan',
+  'getStatus',
+  'recordWidgetClick',
+  'startSpan',
+]);
+
+async function load(path) {
+  try {
+    return await readFile(join(ROOT, path), 'utf8');
+  } catch (error) {
+    throw new Error(
+      `Cannot read required documentation file ${path}: ${error.message}`,
+    );
+  }
+}
+
+function slug(heading) {
+  return heading
+    .toLowerCase()
+    .replace(/[`*_]/g, '')
+    .replace(/[^\p{L}\p{N}\s-]/gu, '')
+    .trim()
+    .replace(/\s+/g, '-');
+}
+
+function headings(markdown) {
+  return new Set(
+    markdown
+      .split(/\r?\n/)
+      .filter((line) => /^#{1,6}\s+/.test(line))
+      .map((line) =>
+        slug(line.replace(/^#{1,6}\s+/, '').replace(/\s+\[[^\]]+\]$/, '')),
+      ),
+  );
+}
+
+for (const path of REQUIRED) {
+  await load(path);
+}
+
+const referenceToc = await load('docs/reference/edot-react-native/toc.yml');
+for (const page of [
+  'index.md',
+  'getting-started.md',
+  'configuration.md',
+  'automatic-instrumentation.md',
+  'manual-instrumentation.md',
+]) {
+  if (!referenceToc.includes(`- file: ${page}`)) {
+    throw new Error(`Reference navigation is missing ${page}.`);
+  }
+}
+for (const platform of ['android', 'ios']) {
+  const troubleshootingCrosslink = `crosslink: docs-content://troubleshoot/ingest/opentelemetry/edot-sdks/${platform}/index.md`;
+  if (!referenceToc.includes(troubleshootingCrosslink)) {
+    throw new Error(
+      `Reference navigation is missing the EDOT ${platform} troubleshooting crosslink.`,
+    );
+  }
+}
+
+const releaseToc = await load('docs/release-notes/toc.yml');
+for (const page of ['index.md', 'known-issues.md']) {
+  if (!releaseToc.includes(`- file: ${page}`)) {
+    throw new Error(`Release-note navigation is missing ${page}.`);
+  }
+}
+
+const markdownCache = new Map();
+for (const path of MARKDOWN) {
+  markdownCache.set(path, await load(path));
+}
+
+for (const [path, markdown] of markdownCache) {
+  for (const match of markdown.matchAll(/\[[^\]]+\]\(([^)]+)\)/g)) {
+    const destination = match[1];
+    if (
+      destination.startsWith('#') ||
+      /^[a-z][a-z0-9+.-]*:\/\//i.test(destination)
+    ) {
+      continue;
+    }
+    const [fileDestination, fragment] = destination.split('#', 2);
+    const resolved = normalize(join(dirname(path), fileDestination));
+    if (!resolved.startsWith('docs/') && resolved !== 'README.md') {
+      throw new Error(
+        `${path} links outside the documentation payload: ${destination}`,
+      );
+    }
+    const target = markdownCache.get(resolved) ?? (await load(resolved));
+    if (fragment && !headings(target).has(fragment)) {
+      throw new Error(`${path} links to missing heading ${destination}.`);
+    }
+  }
+}
+
+const allDocumentation = [...markdownCache.values()].join('\n');
+for (const forbidden of ['EDOT Collector', 'APM Server']) {
+  if (allDocumentation.includes(forbidden)) {
+    throw new Error(
+      `Documentation contains forbidden stale terminology: ${forbidden}`,
+    );
+  }
+}
+for (const staleExample of ['import { crash }', 'await crash()']) {
+  if (allDocumentation.includes(staleExample)) {
+    throw new Error(
+      `Documentation contains an unavailable crash example: ${staleExample}`,
+    );
+  }
+}
+
+const expectedCommands = [
+  'npx elastic-otel-react-native setup-android --project-root .',
+  'npx elastic-otel-react-native setup-ios --project-root .',
+];
+for (const path of [
+  'README.md',
+  'docs/reference/edot-react-native/getting-started.md',
+]) {
+  for (const expectedCommand of expectedCommands) {
+    if (!markdownCache.get(path).includes(expectedCommand)) {
+      throw new Error(`${path} is missing ${expectedCommand}.`);
+    }
+  }
+}
+
+const gettingStarted = markdownCache.get(
+  'docs/reference/edot-react-native/getting-started.md',
+);
+const testedVersionRows = new Map(
+  gettingStarted
+    .split(/\r?\n/)
+    .filter((line) => line.startsWith('|'))
+    .map((line) =>
+      line
+        .split('|')
+        .slice(1, -1)
+        .map((cell) => cell.trim()),
+    )
+    .filter((cells) => cells.length === 2),
+);
+for (const [component, version] of [
+  ['Node.js', '22.23.2'],
+  ['React', '19.2.3'],
+  ['React Native', '0.87.1 with Hermes and the New Architecture'],
+  ['Android Gradle Plugin', '9.2.1'],
+  ['Gradle', '9.4.1'],
+  ['Kotlin', '2.2.0'],
+  ['JDK', 'Amazon Corretto 21.0.9'],
+  ['Android API', 'compile 37 / target 36 / minimum 26'],
+  // The EDOT Android row is checked by scripts/check-edot-android-version.mjs.
+  ['Xcode', '27.0'],
+  ['CocoaPods', '1.16.2'],
+  ['iOS deployment target', '16.0'],
+  ['EDOT iOS', '1.4.0 (`ElasticApm` SwiftPM product)'],
+]) {
+  if (testedVersionRows.get(component) !== version) {
+    throw new Error(
+      `The canonical tested-version table is missing ${component}.`,
+    );
+  }
+}
+
+for (const plugin of PLUGINS) {
+  const occurrences = gettingStarted.split(plugin).length - 1;
+  if (occurrences < 2) {
+    throw new Error(`The manual fallback is missing ${plugin}.`);
+  }
+}
+
+for (const [path, markdown] of markdownCache) {
+  for (const match of markdown.matchAll(
+    /import\s*\{([\s\S]*?)\}\s*from '@elastic\/otel-react-native';/g,
+  )) {
+    const imports = match[1]
+      .split(',')
+      .map((name) => name.trim())
+      .filter(Boolean);
+    for (const imported of imports) {
+      if (!ALLOWED_BRIDGE_EXPORTS.has(imported)) {
+        throw new Error(
+          `${path} imports an unavailable bridge API: ${imported}`,
+        );
+      }
+    }
+  }
+}
+
+const packageJson = JSON.parse(await load('package.json'));
+if (
+  packageJson.bin?.['elastic-otel-react-native'] !==
+  'bin/elastic-otel-react-native.mjs'
+) {
+  throw new Error(
+    'package.json does not expose the canonical setup executable.',
+  );
+}
+for (const path of REQUIRED) {
+  if (!['.md', '.yml'].includes(extname(path))) {
+    throw new Error(`Unexpected documentation file type: ${path}`);
+  }
+}
+
+console.log(`Validated ${REQUIRED.length} docs files and local navigation.`);

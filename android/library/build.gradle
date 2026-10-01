@@ -1,0 +1,40 @@
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+
+plugins {
+    id("com.android.library")
+    id("org.jetbrains.kotlin.android")
+}
+
+android {
+    namespace = "co.elastic.otel.reactnative"
+    compileSdk = 36
+
+    defaultConfig {
+        minSdk = 26
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    testOptions {
+        unitTests.all {
+            it.useJUnit()
+        }
+    }
+}
+
+kotlin {
+    compilerOptions {
+        jvmTarget.set(JvmTarget.JVM_17)
+    }
+}
+
+dependencies {
+    implementation("com.facebook.react:react-android")
+    implementation("co.elastic.otel.android:agent-sdk:1.10.0")
+
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("io.opentelemetry:opentelemetry-sdk-testing:1.51.0")
+}

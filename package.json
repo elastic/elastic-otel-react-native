@@ -1,0 +1,82 @@
+{
+  "name": "@elastic/otel-react-native",
+  "version": "0.0.0",
+  "description": "React Native bridge for EDOT Android and EDOT iOS",
+  "license": "Apache-2.0",
+  "homepage": "https://github.com/elastic/elastic-otel-react-native#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/elastic/elastic-otel-react-native.git"
+  },
+  "bugs": {
+    "url": "https://github.com/elastic/elastic-otel-react-native/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "main": "src/index.ts",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./src/index.ts"
+    },
+    "./babel-plugin": "./babel-plugin.cjs",
+    "./package.json": "./package.json"
+  },
+  "bin": {
+    "elastic-otel-react-native": "bin/elastic-otel-react-native.mjs"
+  },
+  "files": [
+    "bin",
+    "babel-plugin.cjs",
+    "docs",
+    "src",
+    "lib",
+    "ElasticOtelReactNative.podspec",
+    "ios/Sources",
+    "android/library/build.gradle",
+    "android/library/src/main",
+    "react-native.config.js",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "format:check": "prettier --check README.md package.json babel-plugin.cjs react-native.config.js src tests bin scripts docs fixture/index.ts fixture/tsconfig.json",
+    "typecheck": "tsc --noEmit",
+    "build:types": "tsc --emitDeclarationOnly",
+    "prepare": "npm run build:types",
+    "prepack": "npm run build:types",
+    "test": "jest --passWithNoTests",
+    "android:test": "cd android && ./gradlew :library:testDebugUnitTest",
+    "ios:test": "node scripts/run-ios-native-tests.mjs",
+    "setup:test": "node scripts/test-setup-android.mjs",
+    "setup:ios:test": "node scripts/test-setup-ios.mjs",
+    "docs:check": "node scripts/validate-docs.mjs",
+    "pack:check": "node scripts/validate-package-payload.mjs",
+    "fixture:build": "npm --prefix build/external-fixture ci --no-audit --no-fund && cd build/external-fixture/android && ./gradlew :app:assembleDebug :app:assembleRelease",
+    "fixture:ios:build": "node scripts/build-ios-fixture.mjs",
+    "fixture:typecheck": "tsc --project build/external-fixture/tsconfig.json --noEmit",
+    "fixture:verify-autolinking": "node scripts/verify-fixture-autolinking.mjs",
+    "edot-android:check": "node scripts/check-edot-android-version.mjs",
+    "lockfile:check": "node scripts/check-lockfiles.mjs",
+    "validate": "npm run edot-android:check && npm run lockfile:check && npm run format:check && npm run typecheck && npm run build:types && npm test && npm run android:test && npm run ios:test && npm run setup:test && npm run setup:ios:test && npm run fixture:typecheck && npm run docs:check && npm run pack:check && npm run fixture:build && npm run fixture:ios:build && npm run fixture:verify-autolinking"
+  },
+  "peerDependencies": {
+    "react": "*",
+    "react-native": ">=0.80.0"
+  },
+  "devDependencies": {
+    "@babel/core": "7.28.3",
+    "@react-native-community/cli": "20.2.0",
+    "@react-native-community/cli-platform-android": "20.2.0",
+    "@react-native-community/cli-platform-ios": "20.2.0",
+    "@types/jest": "29.5.14",
+    "@types/react": "19.2.7",
+    "jest": "29.7.0",
+    "prettier": "3.5.3",
+    "react": "19.2.3",
+    "react-native": "0.87.1",
+    "typescript": "5.8.3"
+  }
+}

@@ -1,0 +1,21 @@
+plugins {
+    id("com.android.library") version "8.12.0" apply false
+    id("org.jetbrains.kotlin.android") version "2.4.10" apply false
+}
+
+// Development-only: in an app, React Native's Gradle plugin supplies the
+// react-android version. This standalone build takes it from package.json.
+def reactNativeVersion = new groovy.json.JsonSlurper()
+    .parse(file("../package.json"))
+    .devDependencies["react-native"]
+subprojects {
+    configurations.configureEach {
+        resolutionStrategy.eachDependency { details ->
+            if (details.requested.group == "com.facebook.react" &&
+                    details.requested.name == "react-android" &&
+                    !details.requested.version) {
+                details.useVersion(reactNativeVersion)
+            }
+        }
+    }
+}

@@ -1,0 +1,8 @@
+project: 'EDOT React Native SDK docs'
+products:
+  - id: edot-sdk
+cross_links:
+  - docs-content
+toc:
+  - toc: release-notes
+  - toc: reference/edot-react-native
