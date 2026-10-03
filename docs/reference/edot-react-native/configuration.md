@@ -5,25 +5,114 @@ description: Configure native-first EDOT Android and EDOT iOS initialization for
 
 # Configure EDOT React Native
 
-Configuration is supplied once, natively, through
-`BootstrapConfiguration`. The bridge deliberately omits deployment environment
-until the native SDK contract is aligned; it does not introduce a
-bridge-specific resource attribute.
+On Android, the bridge reads its configuration from one file,
+`elastic-otel-config.json`, at the React Native project root. On iOS, supply
+the configuration natively through the Swift `BootstrapConfiguration`.
 
-Android:
+## Configuration file
+
+Create `elastic-otel-config.json` next to `package.json`, `metro.config.js`,
+and `babel.config.js`:
+
+```json
+{
+  "$schema": "./node_modules/@elastic/otel-react-native/elastic-otel-config.schema.json",
+  "exportUrl": "https://your-otlp-endpoint.example",
+  "apiKey": "your-api-key",
+  "exportProtocol": "http",
+  "serviceName": "your-service",
+  "serviceVersion": "1.4.0",
+  "deploymentEnvironmentName": "production",
+  "sessionSampleRate": 1,
+  "resourceAttributes": {
+    "service.namespace": "shop"
+  }
+}
+```
+
+The `$schema` line points your editor at the JSON schema shipped in the
+package, which gives completion and validation while you edit. The bridge
+ignores it.
+
+| Key                         | Type                    | Required | Default                 | Sets                                                    |
+| --------------------------- | ----------------------- | -------- | ----------------------- | ------------------------------------------------------- |
+| `$schema`                   | string                  | no       |                         | Nothing. Editors use it; the bridge ignores it.         |
+| `exportUrl`                 | string                  | yes      |                         | The OTLP base URL. See [OTLP base URL](#otlp-base-url). |
+| `apiKey`                    | string                  | no       | no authentication       | The API key sent with each export request.              |
+| `exportProtocol`            | `"http"` or `"grpc"`    | no       | `"http"`                | The OTLP transport.                                     |
+| `serviceName`               | string                  | yes      |                         | `service.name`                                          |
+| `serviceVersion`            | string                  | no       | the application version | `service.version`                                       |
+| `deploymentEnvironmentName` | string                  | no       | not set                 | `deployment.environment.name`                           |
+| `sessionSampleRate`         | number from 0 to 1      | no       | `1`                     | The fraction of sessions that are recorded.             |
+| `resourceAttributes`        | object of string values | no       | `{}`                    | One resource attribute for each entry.                  |
+
+Use OpenTelemetry semantic convention keys in `resourceAttributes`, such as
+`service.namespace`. `service.name`, `service.version`, and
+`deployment.environment.name` are rejected there because their dedicated keys
+set them.
+
+The file accepts only the keys in this table. An unknown key, such as a
+misspelled `apikey`, is rejected rather than ignored, so a typo cannot silently
+drop a setting. String values must not be blank.
+
+### How the file reaches the app
+
+`setup-android` applies the package's `elastic-otel-config.gradle` script in
+`android/app/build.gradle`. At build time the script copies
+`elastic-otel-config.json` into the application assets. If the file does not
+exist, the build logs a warning with the expected path and continues.
+
+In `MainApplication.onCreate`, `ElasticOtelReactNative.initialize(this)` reads
+the file from the assets and starts EDOT Android before React Native loads.
+Rebuild the app after you change the file.
+
+### Configuration errors
+
+A missing file, invalid JSON, an unknown key, a value of the wrong type, or an
+invalid value throws `BootstrapException` from
+`ElasticOtelReactNative.initialize(this)`. The message names the file and the
+offending key or value. Telemetry is not initialized. Because the file is
+bundled at build time, the error appears on the first run of the build that
+contains it.
+
+### API keys in the app
+
+An API key in this file is compiled into the app, like every telemetry
+credential that ships in a mobile app, and can be extracted from the binary.
+Use an API key that only grants telemetry ingestion, and rotate it like any
+other client credential. If the file holds an API key, keep it out of public
+repositories.
+
+## Configure in code
+
+On Android, a host that builds its configuration in code can call the
+`BootstrapConfiguration` overload instead of reading the file. This form also
+accepts a secret token through `AuthenticationConfiguration.secretToken` and a
+custom instrumentation scope:
 
 ```kotlin
-BootstrapConfiguration(
-    exportUrl = "https://your-otlp-endpoint.example",
-    authentication = AuthenticationConfiguration.apiKey("your-api-key"),
-    protocol = Transport.HTTP,
-    sessionSampleRate = 1.0,
-    serviceName = "your-service",
-    instrumentationScopeName = "com.example.my-app",
+ElasticOtelReactNative.initialize(
+    this,
+    BootstrapConfiguration(
+        exportUrl = "https://your-otlp-endpoint.example",
+        authentication = AuthenticationConfiguration.apiKey("your-api-key"),
+        protocol = Transport.HTTP,
+        sessionSampleRate = 1.0,
+        serviceName = "your-service",
+        instrumentationScopeName = "com.example.my-app",
+        serviceVersion = "1.4.0",
+        deploymentEnvironmentName = "production",
+        resourceAttributes = mapOf("service.namespace" to "shop"),
+    ),
 )
 ```
 
-iOS:
+Use one form. EDOT Android initializes once, so calling both
+`initialize(this)` and `initialize(this, configuration)` throws the
+duplicate-initialization `BootstrapException`. The file and the code are never
+merged.
+
+On iOS:
 
 ```swift
 BootstrapConfiguration(
@@ -56,7 +145,8 @@ For an Android emulator reaching a local OTLP/HTTP endpoint on the host, use
 
 ## Authentication
 
-Choose one native form:
+In the configuration file, set `apiKey` or omit it. In code, choose one native
+form:
 
 ```kotlin
 AuthenticationConfiguration.none()
@@ -71,14 +161,15 @@ AuthenticationConfiguration.secretToken("secret-token")
 ```
 
 Blank credentials are rejected. The Swift enum makes simultaneous API key and
-secret token configuration unrepresentable. Keep credentials out of source
-control and supply them using the application's existing secret-management
-mechanism.
+secret token configuration unrepresentable. See
+[API keys in the app](#api-keys-in-the-app) for how a bundled credential is
+exposed.
 
 ## Transport
 
-OTLP/HTTP is the default. Select Android `Transport.GRPC` or iOS `.grpc`
-explicitly only when the chosen endpoint accepts OTLP/gRPC. The endpoint URL
+OTLP/HTTP is the default. Select `"exportProtocol": "grpc"`, Android
+`Transport.GRPC`, or iOS `.grpc` explicitly only when the chosen endpoint
+accepts OTLP/gRPC. The endpoint URL
 scheme still determines TLS or plaintext transport.
 
 ## Session sampling
@@ -92,22 +183,28 @@ decision.
 `serviceName` is required and must not be blank. Use a stable name that
 identifies the mobile application as the telemetry-producing service.
 
+On Android, `serviceVersion`, `deploymentEnvironmentName`, and
+`resourceAttributes` add to the resource attributes EDOT Android sets, such as
+the device and operating system attributes.
+
 EDOT iOS exposes service-name override through
 `OTEL_RESOURCE_ATTRIBUTES`. Its public parser separates entries on commas and
 key/value pairs on equals signs, so the iOS bridge rejects service names
 containing `,` or `=` rather than exporting a different value. Other existing
-resource attributes are preserved, and the bridge does not set deployment
-environment.
+resource attributes are preserved. The iOS `BootstrapConfiguration` does not
+set the service version, deployment environment, or other resource
+attributes.
 
 ## Instrumentation scope
 
 `instrumentationScopeName` identifies manual spans and logs created through the
-bridge. It defaults to `@elastic/otel-react-native` and must not be blank.
+bridge. It defaults to `@elastic/otel-react-native` and must not be blank. The
+configuration file always uses the default scope.
 
 ## Initialization and errors
 
 Call Android `ElasticOtelReactNative.initialize` once from
-`Application.onCreate`. Call the Swift equivalent once from `AppDelegate`
+`Application.onCreate`, with or without a `BootstrapConfiguration`. Call the Swift equivalent once from `AppDelegate`
 before React Native starts. Invalid configuration and duplicate initialization
 throw `BootstrapException`. A failed validation or native agent construction
 does not retain a partially initialized bridge agent.

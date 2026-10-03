@@ -9,6 +9,7 @@ import {
   realpath,
   rename,
   rm,
+  stat,
   writeFile,
 } from 'node:fs/promises';
 import { dirname, isAbsolute, relative, resolve, sep } from 'node:path';
@@ -20,6 +21,9 @@ export const PLUGINS = [
   'co.elastic.otel.android.instrumentation.okhttp',
   'co.elastic.otel.android.instrumentation.crash',
 ];
+export const CONFIG_FILE = 'elastic-otel-config.json';
+export const CONFIG_SCRIPT_LINE =
+  'apply from: "../../node_modules/@elastic/otel-react-native/android/elastic-otel-config.gradle"';
 
 const TARGETS = [
   {
@@ -383,7 +387,7 @@ function inspectRootContent(target, content, lines, activeLines, diagnostics) {
     return { state: 'refused' };
   }
   if (installed === PLUGINS.length) {
-    return { state: 'installed' };
+    return { state: 'installed', pluginState: 'installed' };
   }
 
   const indentation = '    ';
@@ -397,6 +401,7 @@ function inspectRootContent(target, content, lines, activeLines, diagnostics) {
   updatedLines.splice(buildscript.end + 1, 0, ...insertedLines);
   return {
     state: 'missing',
+    pluginState: 'missing',
     updatedContent: updatedLines.join(content.includes('\r\n') ? '\r\n' : '\n'),
     edit: {
       afterLine: 'buildscript { ... }',
@@ -445,24 +450,69 @@ function inspectAppContent(target, content, lines, activeLines, diagnostics) {
     );
   }
 
+  const configScriptState = configScriptStateOf(
+    lines,
+    activeLines,
+    diagnostics,
+  );
+
   if (diagnostics.length > 0) {
     return { state: 'refused' };
   }
-  if (installed === PLUGINS.length) {
-    return { state: 'installed' };
+  const pluginState = installed === PLUGINS.length ? 'installed' : 'missing';
+  if (pluginState === 'installed' && configScriptState === 'installed') {
+    return { state: 'installed', pluginState };
   }
 
-  const insertedLines = PLUGINS.map((plugin) => target.pluginLine(plugin));
   const updatedLines = [...lines];
-  updatedLines.splice(anchors[0].index + 1, 0, ...insertedLines);
+  let edit;
+  if (pluginState === 'missing') {
+    const insertedLines = PLUGINS.map((plugin) => target.pluginLine(plugin));
+    updatedLines.splice(anchors[0].index + 1, 0, ...insertedLines);
+    edit = { afterLine: lines[anchors[0].index].trim(), insertedLines };
+  }
+  if (configScriptState === 'missing') {
+    // The script configures the Android application, so it follows the last
+    // EDOT Android plugin application.
+    const lastPluginIndex = updatedLines.findLastIndex((line) =>
+      PLUGINS.some((plugin) => line === target.pluginLine(plugin)),
+    );
+    updatedLines.splice(lastPluginIndex + 1, 0, CONFIG_SCRIPT_LINE);
+    edit = edit
+      ? { ...edit, insertedLines: [...edit.insertedLines, CONFIG_SCRIPT_LINE] }
+      : {
+          afterLine: updatedLines[lastPluginIndex].trim(),
+          insertedLines: [CONFIG_SCRIPT_LINE],
+        };
+  }
   return {
     state: 'missing',
+    pluginState,
     updatedContent: updatedLines.join(content.includes('\r\n') ? '\r\n' : '\n'),
-    edit: {
-      afterLine: lines[anchors[0].index].trim(),
-      insertedLines,
-    },
+    edit,
   };
+}
+
+function configScriptStateOf(lines, activeLines, diagnostics) {
+  const occurrences = activeLines
+    .map((line, index) => ({ line, originalLine: lines[index] }))
+    .filter(({ line }) => line.includes('elastic-otel-config.gradle'));
+  if (occurrences.length > 1) {
+    diagnostics.push(
+      `The configuration Gradle script is applied ${occurrences.length} times.`,
+    );
+    return 'conflict';
+  }
+  if (occurrences.length === 0) {
+    return 'missing';
+  }
+  if (occurrences[0].originalLine !== CONFIG_SCRIPT_LINE) {
+    diagnostics.push(
+      `The configuration Gradle script conflicts with the required declaration: ${CONFIG_SCRIPT_LINE}.`,
+    );
+    return 'conflict';
+  }
+  return 'installed';
 }
 
 function inspectContent(target, content) {
@@ -537,11 +587,13 @@ async function inspectTarget(projectRoot, target) {
         afterSha256: hash(content),
         beforeFileIdentity: identity,
         originalContent: content,
+        pluginState: inspection.pluginState,
       };
     }
     return {
       path: target.path,
       absolutePath,
+      pluginState: inspection.pluginState,
       status: 'planned',
       diagnostics: [],
       beforeSha256: hash(content),
@@ -567,6 +619,7 @@ function publicFile(file) {
     beforeFileIdentity: _beforeFileIdentity,
     originalContent: _originalContent,
     updatedContent: _updatedContent,
+    pluginState: _pluginState,
     ...visible
   } = file;
   return visible;
@@ -582,12 +635,39 @@ function publicCheck(check) {
   return visible;
 }
 
+// Informational only: the configuration file never changes the outcome, code,
+// or exit code, and it is not part of the inspected state that writes depend on.
+async function inspectConfigFile(projectRoot) {
+  let found = false;
+  try {
+    found = (await stat(resolve(projectRoot, CONFIG_FILE))).isFile();
+  } catch {
+    found = false;
+  }
+  return {
+    name: 'config-file',
+    path: CONFIG_FILE,
+    status: found ? 'found' : 'missing',
+  };
+}
+
+function reportedChecks(inspection) {
+  return [...inspection.checks.map(publicCheck), inspection.configFile];
+}
+
+function withConfigFileNote(message, inspection) {
+  return inspection.configFile.status === 'missing'
+    ? `${message} ${CONFIG_FILE} was not found at the project root; ElasticOtelReactNative.initialize(this) fails at startup without it.`
+    : message;
+}
+
 async function inspectProject(projectRoot) {
-  const [files, checks] = await Promise.all([
+  const [files, checks, configFile] = await Promise.all([
     Promise.all(TARGETS.map((target) => inspectTarget(projectRoot, target))),
     Promise.all(
       SUPPORT_CHECKS.map((check) => inspectSupportCheck(projectRoot, check)),
     ),
+    inspectConfigFile(projectRoot),
   ]);
   const states = files.map((file) => file.status);
   if (
@@ -600,10 +680,12 @@ async function inspectProject(projectRoot) {
         'The Android project does not match the supported bare React Native Groovy layout.',
       files,
       checks,
+      configFile,
       refused: true,
     };
   }
-  if (states.includes('planned') && states.includes('no-op')) {
+  const pluginStates = files.map((file) => file.pluginState);
+  if (pluginStates.includes('missing') && pluginStates.includes('installed')) {
     return {
       code: 'partial-installation',
       message:
@@ -613,14 +695,15 @@ async function inspectProject(projectRoot) {
         status: 'refused',
         diagnostics: [
           ...(file.diagnostics ?? []),
-          'Both target files must be either clean or fully configured.',
+          'Both target files must either lack or fully contain the EDOT Android plugins.',
         ],
       })),
       checks,
+      configFile,
       refused: true,
     };
   }
-  return { files, checks, refused: false };
+  return { files, checks, configFile, refused: false };
 }
 
 function isWithin(root, candidate) {
@@ -751,7 +834,7 @@ function staleInspectionResult({
       'A project support input changed or became unsafe after inspection. Review partialEffects before retrying.',
     projectRoot,
     files: files.map(publicFile),
-    checks: checks.map(publicCheck),
+    checks: reportedChecks({ ...inspection, checks }),
     partialEffects,
   });
 }
@@ -782,10 +865,10 @@ export async function executeSetup({
       mode,
       outcome: 'refused',
       code: inspection.code,
-      message: inspection.message,
+      message: withConfigFileNote(inspection.message, inspection),
       projectRoot: canonicalRoot,
       files: inspection.files.map(publicFile),
-      checks: inspection.checks.map(publicCheck),
+      checks: reportedChecks(inspection),
     });
   }
 
@@ -795,10 +878,13 @@ export async function executeSetup({
       mode,
       outcome: 'success',
       code: 'already-configured',
-      message: 'All required EDOT Android plugin wiring is already present.',
+      message: withConfigFileNote(
+        'All required EDOT Android Gradle wiring is already present.',
+        inspection,
+      ),
       projectRoot: canonicalRoot,
       files: inspection.files.map(publicFile),
-      checks: inspection.checks.map(publicCheck),
+      checks: reportedChecks(inspection),
     });
   }
 
@@ -807,10 +893,13 @@ export async function executeSetup({
       mode,
       outcome: 'refused',
       code: 'setup-required',
-      message: 'Required EDOT Android plugin wiring is missing.',
+      message: withConfigFileNote(
+        'Required EDOT Android Gradle wiring is missing.',
+        inspection,
+      ),
       projectRoot: canonicalRoot,
       files: inspection.files.map(publicFile),
-      checks: inspection.checks.map(publicCheck),
+      checks: reportedChecks(inspection),
     });
   }
   if (mode === 'dry-run') {
@@ -818,10 +907,13 @@ export async function executeSetup({
       mode,
       outcome: 'success',
       code: 'changes-planned',
-      message: 'The listed EDOT Android plugin edits would be applied.',
+      message: withConfigFileNote(
+        'The listed EDOT Android Gradle edits would be applied.',
+        inspection,
+      ),
       projectRoot: canonicalRoot,
       files: inspection.files.map(publicFile),
-      checks: inspection.checks.map(publicCheck),
+      checks: reportedChecks(inspection),
     });
   }
   if (mode !== 'apply') {
@@ -832,7 +924,7 @@ export async function executeSetup({
       message: `Unsupported setup mode: ${mode}`,
       projectRoot: canonicalRoot,
       files: inspection.files.map(publicFile),
-      checks: inspection.checks.map(publicCheck),
+      checks: reportedChecks(inspection),
     });
   }
 
@@ -931,7 +1023,7 @@ export async function executeSetup({
           'Setup stopped after an unexpected write failure. Review partialEffects before retrying.',
         projectRoot: canonicalRoot,
         files: files.map(publicFile),
-        checks: inspection.checks.map(publicCheck),
+        checks: reportedChecks(inspection),
         partialEffects,
       });
     }
@@ -941,10 +1033,13 @@ export async function executeSetup({
     mode,
     outcome: 'success',
     code: 'changes-applied',
-    message: 'Required EDOT Android plugin wiring was applied.',
+    message: withConfigFileNote(
+      'Required EDOT Android Gradle wiring was applied.',
+      inspection,
+    ),
     projectRoot: canonicalRoot,
     files: files.map(publicFile),
-    checks: inspection.checks.map(publicCheck),
+    checks: reportedChecks(inspection),
     partialEffects,
   });
 }

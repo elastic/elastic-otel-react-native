@@ -27,30 +27,41 @@ npx elastic-otel-react-native setup-android --project-root .
 npx elastic-otel-react-native setup-ios --project-root .
 ```
 
-Android setup adds only the EDOT agent, OkHttp, and crash Gradle plugins. iOS
-setup checks the project layout and makes no host changes; set the
+Android setup adds the EDOT agent, OkHttp, and crash Gradle plugins and applies
+the package's configuration Gradle script:
+
+```groovy
+apply from: "../../node_modules/@elastic/otel-react-native/android/elastic-otel-config.gradle"
+```
+
+iOS setup checks the project layout and makes no host changes; set the
 iOS deployment target to 16 and install pods with `USE_FRAMEWORKS=dynamic`.
-Neither command
-writes credentials, endpoints, or native bootstrap code. See
+Neither command writes credentials, endpoints, the configuration file, or
+native bootstrap code. See
 [Get started](docs/reference/edot-react-native/getting-started.md) for dry-run,
 check, CocoaPods, manual fallback, and selected-release limitations.
 
-Bootstrap Android once in `MainApplication.onCreate`, before
+For Android, create `elastic-otel-config.json` at the project root. The
+configuration Gradle script copies it into the app assets at build time:
+
+```json
+{
+  "$schema": "./node_modules/@elastic/otel-react-native/elastic-otel-config.schema.json",
+  "exportUrl": "https://your-otlp-endpoint.example",
+  "apiKey": "your-api-key",
+  "serviceName": "your-service"
+}
+```
+
+Then bootstrap Android once in `MainApplication.onCreate`, before
 `loadReactNative(this)`:
 
 ```kotlin
-ElasticOtelReactNative.initialize(
-    this,
-    BootstrapConfiguration(
-        exportUrl = "https://your-otlp-endpoint.example",
-        authentication = AuthenticationConfiguration.apiKey("your-api-key"),
-        protocol = Transport.HTTP,
-        sessionSampleRate = 1.0,
-        serviceName = "your-service",
-        instrumentationScopeName = "com.example.my-app",
-    ),
-)
+ElasticOtelReactNative.initialize(this)
 ```
+
+See [Configuration](docs/reference/edot-react-native/configuration.md) for every
+key and for configuring in code.
 
 Bootstrap iOS once in `AppDelegate`, before starting React Native:
 

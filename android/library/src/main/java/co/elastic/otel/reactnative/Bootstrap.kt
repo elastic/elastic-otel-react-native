@@ -5,9 +5,18 @@ import co.elastic.otel.android.ElasticApmAgent
 import co.elastic.otel.android.api.ElasticOtelAgent
 import co.elastic.otel.android.connectivity.Authentication
 import co.elastic.otel.android.exporters.configuration.ExportProtocol
+import co.elastic.otel.android.interceptor.Interceptor
+import io.opentelemetry.sdk.resources.Resource
 import java.net.URI
 
 internal const val DEFAULT_INSTRUMENTATION_SCOPE = "@elastic/otel-react-native"
+
+// Dedicated configuration fields own these resource attributes.
+private val RESERVED_RESOURCE_ATTRIBUTES = mapOf(
+    "service.name" to "serviceName",
+    "service.version" to "serviceVersion",
+    "deployment.environment.name" to "deploymentEnvironmentName",
+)
 
 data class BootstrapConfiguration(
     val exportUrl: String,
@@ -16,6 +25,9 @@ data class BootstrapConfiguration(
     val sessionSampleRate: Double? = null,
     val serviceName: String,
     val instrumentationScopeName: String = DEFAULT_INSTRUMENTATION_SCOPE,
+    val serviceVersion: String? = null,
+    val deploymentEnvironmentName: String? = null,
+    val resourceAttributes: Map<String, String> = emptyMap(),
 )
 
 data class AuthenticationConfiguration(
@@ -45,6 +57,9 @@ internal data class ValidatedBootstrapConfiguration(
     val sessionSampleRate: Double?,
     val serviceName: String,
     val instrumentationScopeName: String,
+    val serviceVersion: String?,
+    val deploymentEnvironmentName: String?,
+    val resourceAttributes: Map<String, String>,
 )
 
 internal object BootstrapValidator {
@@ -88,6 +103,15 @@ internal object BootstrapValidator {
         if (sampleRate != null && (!sampleRate.isFinite() || sampleRate !in 0.0..1.0)) {
             throw BootstrapException("The session sample rate must be between 0 and 1.")
         }
+        val serviceVersion = configuration.serviceVersion?.trim()
+        if (serviceVersion != null && serviceVersion.isEmpty()) {
+            throw BootstrapException("The service version must not be blank.")
+        }
+        val deploymentEnvironmentName = configuration.deploymentEnvironmentName?.trim()
+        if (deploymentEnvironmentName != null && deploymentEnvironmentName.isEmpty()) {
+            throw BootstrapException("The deployment environment name must not be blank.")
+        }
+        validateResourceAttributes(configuration.resourceAttributes)
 
         return ValidatedBootstrapConfiguration(
             exportUrl = exportUrl,
@@ -100,7 +124,26 @@ internal object BootstrapValidator {
             sessionSampleRate = sampleRate,
             serviceName = configuration.serviceName.trim(),
             instrumentationScopeName = instrumentationScopeName,
+            serviceVersion = serviceVersion,
+            deploymentEnvironmentName = deploymentEnvironmentName,
+            resourceAttributes = configuration.resourceAttributes,
         )
+    }
+
+    private fun validateResourceAttributes(attributes: Map<String, String>) {
+        for ((key, value) in attributes) {
+            if (key.isBlank()) {
+                throw BootstrapException("Resource attribute keys must not be blank.")
+            }
+            RESERVED_RESOURCE_ATTRIBUTES[key]?.let { dedicatedField ->
+                throw BootstrapException(
+                    "The resource attribute $key is set through $dedicatedField, not resourceAttributes.",
+                )
+            }
+            if (value.isBlank()) {
+                throw BootstrapException("The resource attribute $key must not be blank.")
+            }
+        }
     }
 
     private fun validateAuthentication(configuration: AuthenticationConfiguration): Authentication {
@@ -124,6 +167,15 @@ internal object BootstrapValidator {
         return Authentication.None
     }
 }
+
+// Adds the configured attributes to the resource EDOT Android builds, keeping
+// every attribute it already holds.
+internal fun resourceAttributesInterceptor(attributes: Map<String, String>): Interceptor<Resource> =
+    Interceptor { resource ->
+        resource.toBuilder()
+            .apply { attributes.forEach { (key, value) -> put(key, value) } }
+            .build()
+    }
 
 internal class AgentLifecycle<A> {
     private var initializedAgent: A? = null
@@ -156,6 +208,12 @@ object ElasticOtelReactNative {
     @Volatile
     private var configuredInstrumentationScopeName = DEFAULT_INSTRUMENTATION_SCOPE
 
+    // Reads elastic-otel-config.json, which the bridge's Gradle script copies
+    // from the React Native project root into the app assets.
+    @JvmStatic
+    fun initialize(application: Application): ElasticOtelAgent =
+        initialize(application, ConfigFileReader.read(application.assets::open))
+
     @JvmStatic
     fun initialize(application: Application, configuration: BootstrapConfiguration): ElasticOtelAgent {
         var instrumentationScopeName = DEFAULT_INSTRUMENTATION_SCOPE
@@ -168,6 +226,11 @@ object ElasticOtelReactNative {
                 .setServiceName(validated.serviceName)
                 .apply {
                     validated.sessionSampleRate?.let(::setSessionSampleRate)
+                    validated.serviceVersion?.let(::setServiceVersion)
+                    validated.deploymentEnvironmentName?.let(::setDeploymentEnvironment)
+                    if (validated.resourceAttributes.isNotEmpty()) {
+                        setResourceInterceptor(resourceAttributesInterceptor(validated.resourceAttributes))
+                    }
                 }
                 .build()
         }

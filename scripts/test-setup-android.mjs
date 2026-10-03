@@ -17,6 +17,8 @@ import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import {
+  CONFIG_FILE,
+  CONFIG_SCRIPT_LINE,
   EDOT_VERSION,
   PLUGINS,
   executeSetup,
@@ -132,7 +134,7 @@ async function insertAfter(file, anchor, lines) {
   );
 }
 
-async function manuallyConfigure(projectRoot) {
+async function manuallyConfigurePlugins(projectRoot) {
   await insertRootPluginBlock(
     projectRoot,
     PLUGINS.map(
@@ -144,6 +146,24 @@ async function manuallyConfigure(projectRoot) {
     'apply plugin: "com.facebook.react"',
     PLUGINS.map((plugin) => `apply plugin: "${plugin}"`),
   );
+}
+
+async function manuallyConfigure(projectRoot) {
+  await manuallyConfigurePlugins(projectRoot);
+  await insertAfter(
+    join(projectRoot, APP_BUILD),
+    `apply plugin: "${PLUGINS.at(-1)}"`,
+    [CONFIG_SCRIPT_LINE],
+  );
+}
+
+function assertConfigScriptAppliedOnceAfterPlugins(appBuild) {
+  const lines = appBuild.split(/\r?\n/);
+  assert.equal(lines.filter((line) => line === CONFIG_SCRIPT_LINE).length, 1);
+  const lastPluginIndex = lines.findLastIndex((line) =>
+    PLUGINS.some((plugin) => line === `apply plugin: "${plugin}"`),
+  );
+  assert.equal(lines[lastPluginIndex + 1], CONFIG_SCRIPT_LINE);
 }
 
 async function insertRootPluginBlock(projectRoot, lines) {
@@ -254,8 +274,13 @@ async function verifySupportedFlow() {
   );
   assert.deepEqual(
     dryRun.result.checks.map((check) => check.status),
-    ['verified', 'verified'],
+    ['verified', 'verified', 'found'],
   );
+  assert.deepEqual(dryRun.result.checks.at(-1), {
+    name: 'config-file',
+    path: CONFIG_FILE,
+    status: 'found',
+  });
   assert.deepEqual(dryRun.result.files[0].edit.insertedLines, [
     'plugins {',
     ...PLUGINS.map(
@@ -263,10 +288,10 @@ async function verifySupportedFlow() {
     ),
     '}',
   ]);
-  assert.deepEqual(
-    dryRun.result.files[1].edit.insertedLines,
-    PLUGINS.map((plugin) => `apply plugin: "${plugin}"`),
-  );
+  assert.deepEqual(dryRun.result.files[1].edit.insertedLines, [
+    ...PLUGINS.map((plugin) => `apply plugin: "${plugin}"`),
+    CONFIG_SCRIPT_LINE,
+  ]);
   assert.deepEqual(await snapshot(EXTERNAL_FIXTURE), original);
 
   const checkBefore = runCli(EXTERNAL_FIXTURE, ['--check'], installedBin);
@@ -300,6 +325,7 @@ async function verifySupportedFlow() {
     );
     assert.ok(configuredApp.includes(`apply plugin: "${plugin}"`));
   }
+  assertConfigScriptAppliedOnceAfterPlugins(configuredApp);
 
   const configured = await snapshot(EXTERNAL_FIXTURE);
   assert.deepEqual(
@@ -321,15 +347,110 @@ async function verifySupportedFlow() {
   assert.equal(checkAfter.result.code, 'already-configured');
   assert.deepEqual(await snapshot(EXTERNAL_FIXTURE), configured);
 
-  const assembled = spawnSync(
-    process.platform === 'win32' ? 'gradlew.bat' : './gradlew',
-    [':app:assembleDebug'],
-    {
-      cwd: join(EXTERNAL_FIXTURE, 'android'),
-      encoding: 'utf8',
-    },
+  const assembleDebug = () => {
+    const assembled = spawnSync(
+      process.platform === 'win32' ? 'gradlew.bat' : './gradlew',
+      [':app:assembleDebug'],
+      {
+        cwd: join(EXTERNAL_FIXTURE, 'android'),
+        encoding: 'utf8',
+      },
+    );
+    assert.equal(assembled.status, 0, assembled.stderr || assembled.stdout);
+    const listed = spawnSync(
+      'unzip',
+      [
+        '-l',
+        join(
+          EXTERNAL_FIXTURE,
+          'android/app/build/outputs/apk/debug/app-debug.apk',
+        ),
+      ],
+      { encoding: 'utf8' },
+    );
+    assert.equal(listed.status, 0, listed.stderr || listed.stdout);
+    return listed.stdout;
+  };
+  assert.match(assembleDebug(), /\sassets\/elastic-otel-config\.json\n/);
+
+  // The copy task syncs its output directory, so a file left there by an
+  // earlier build, such as a renamed configuration file, is not packaged
+  // when the configuration file changes.
+  const configFile = join(EXTERNAL_FIXTURE, CONFIG_FILE);
+  await writeFile(configFile, `${await readFile(configFile, 'utf8')}\n`);
+  await writeFile(
+    join(
+      EXTERNAL_FIXTURE,
+      'android/app/build/generated/elasticOtel/assets/stale.json',
+    ),
+    '{}\n',
   );
-  assert.equal(assembled.status, 0, assembled.stderr || assembled.stdout);
+  const rebuilt = assembleDebug();
+  assert.match(rebuilt, /\sassets\/elastic-otel-config\.json\n/);
+  assert.doesNotMatch(rebuilt, /\sassets\/stale\.json\n/);
+}
+
+async function verifyConfigScriptOnlyHost() {
+  // A host that already applies the plugins gains only the script line.
+  const project = join(WORK, 'config-script-only');
+  await copyFixture(project);
+  await manuallyConfigurePlugins(project);
+  const before = await snapshot(project);
+
+  const check = runCli(project, ['--check']);
+  assert.equal(check.exitCode, 2);
+  assert.equal(check.result.code, 'setup-required');
+  assert.deepEqual(
+    check.result.files.map((file) => file.status),
+    ['no-op', 'planned'],
+  );
+  assert.deepEqual(check.result.files[1].edit, {
+    afterLine: `apply plugin: "${PLUGINS.at(-1)}"`,
+    insertedLines: [CONFIG_SCRIPT_LINE],
+  });
+
+  const apply = runCli(project);
+  assert.equal(apply.exitCode, 0);
+  assert.equal(apply.result.code, 'changes-applied');
+  const after = await snapshot(project);
+  const changedPaths = Object.keys(after).filter(
+    (path) => after[path] !== before[path],
+  );
+  assert.deepEqual(changedPaths, [APP_BUILD]);
+  const appBuild = await readFile(join(project, APP_BUILD), 'utf8');
+  assertConfigScriptAppliedOnceAfterPlugins(appBuild);
+
+  const applyAgain = runCli(project);
+  assert.equal(applyAgain.exitCode, 0);
+  assert.equal(applyAgain.result.code, 'already-configured');
+  assert.deepEqual(await snapshot(project), after);
+}
+
+async function verifyConfigFileCheckIsInformational() {
+  const project = join(WORK, 'config-file-check');
+  await copyFixture(project);
+  const configFileCheck = (setupResult) =>
+    setupResult.checks.find((check) => check.name === 'config-file');
+
+  const found = runCli(project, ['--check']);
+  await rm(join(project, CONFIG_FILE));
+  const missing = runCli(project, ['--check']);
+  assert.equal(configFileCheck(found.result).status, 'found');
+  assert.equal(configFileCheck(missing.result).status, 'missing');
+  assert.equal(missing.exitCode, found.exitCode);
+  assert.equal(missing.result.outcome, found.result.outcome);
+  assert.equal(missing.result.code, found.result.code);
+  assert.ok(!found.result.message.includes(CONFIG_FILE));
+  assert.ok(missing.result.message.includes(CONFIG_FILE));
+
+  const apply = runCli(project);
+  assert.equal(apply.exitCode, 0);
+  assert.equal(apply.result.code, 'changes-applied');
+  assert.equal(configFileCheck(apply.result).status, 'missing');
+  const configured = runCli(project, ['--check']);
+  assert.equal(configured.exitCode, 0);
+  assert.equal(configured.result.code, 'already-configured');
+  assert.equal(configFileCheck(configured.result).status, 'missing');
 }
 
 async function verifyRefusal(name, mutate, expectedCode) {
@@ -602,6 +723,20 @@ await verifyRefusal(
   },
   'unsupported-project',
 );
+await verifyRefusal(
+  'conflicting-config-script',
+  async (project) => {
+    await manuallyConfigurePlugins(project);
+    await insertAfter(
+      join(project, APP_BUILD),
+      `apply plugin: "${PLUGINS.at(-1)}"`,
+      ['apply from: "../elastic-otel-config.gradle"'],
+    );
+  },
+  'unsupported-project',
+);
+await verifyConfigScriptOnlyHost();
+await verifyConfigFileCheckIsInformational();
 await verifyOlderHostAccepted();
 await verifyRefusal(
   'comments-only-settings',

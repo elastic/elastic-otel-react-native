@@ -84,10 +84,15 @@ npx elastic-otel-react-native setup-android --project-root .
 ```
 
 The command supports the React Native template's Groovy layout. It adds an
-EDOT Android root plugin block and applies the agent, OkHttp, and crash plugins
-to the application module. Before writing, it verifies the `react-native`
-dependency, the autolinking anchors, and any existing EDOT Android plugin
-declarations.
+EDOT Android root plugin block, applies the agent, OkHttp, and crash plugins to
+the application module, and applies the package's configuration Gradle script
+after them. The script copies `elastic-otel-config.json` from the project root
+into the application assets at build time; see
+[Configuration file](configuration.md#configuration-file). Before writing, the
+command verifies the `react-native` dependency, the autolinking anchors, and
+any existing EDOT Android plugin and script declarations. Its result also
+reports whether `elastic-otel-config.json` exists, without failing when it does
+not.
 
 The command never edits `MainApplication`, credentials, endpoints, manifests,
 network security, repositories, or host tool versions. It refuses conflicting
@@ -151,12 +156,14 @@ plugins {
 }
 ```
 
-Apply all three plugins in `android/app/build.gradle`:
+Apply all three plugins and the configuration Gradle script in
+`android/app/build.gradle`:
 
 ```groovy
 apply plugin: "co.elastic.otel.android.agent"
 apply plugin: "co.elastic.otel.android.instrumentation.okhttp"
 apply plugin: "co.elastic.otel.android.instrumentation.crash"
+apply from: "../../node_modules/@elastic/otel-react-native/android/elastic-otel-config.gradle"
 ```
 
 For iOS, follow the two manual steps in [Set up iOS](#set-up-ios). Do not add
@@ -164,28 +171,27 @@ EDOT iOS as a sibling path or edit its repository to add a podspec.
 
 ## Bootstrap before React Native
 
-In Android `MainApplication.kt`, initialize after `super.onCreate()` and before
+For Android, create `elastic-otel-config.json` at the project root:
+
+```json
+{
+  "$schema": "./node_modules/@elastic/otel-react-native/elastic-otel-config.schema.json",
+  "exportUrl": "https://your-otlp-endpoint.example",
+  "apiKey": "your-api-key",
+  "serviceName": "your-service"
+}
+```
+
+[Configuration](configuration.md#configuration-file) lists every key. Then, in
+`MainApplication.kt`, initialize after `super.onCreate()` and before
 `loadReactNative(this)`:
 
 ```kotlin
-import co.elastic.otel.reactnative.AuthenticationConfiguration
-import co.elastic.otel.reactnative.BootstrapConfiguration
 import co.elastic.otel.reactnative.ElasticOtelReactNative
-import co.elastic.otel.reactnative.Transport
 
 override fun onCreate() {
     super.onCreate()
-    ElasticOtelReactNative.initialize(
-        this,
-        BootstrapConfiguration(
-            exportUrl = "https://your-otlp-endpoint.example",
-            authentication = AuthenticationConfiguration.apiKey("your-api-key"),
-            protocol = Transport.HTTP,
-            sessionSampleRate = 1.0,
-            serviceName = "your-service",
-            instrumentationScopeName = "com.example.my-app",
-        ),
-    )
+    ElasticOtelReactNative.initialize(this)
     loadReactNative(this)
 }
 ```
@@ -212,8 +218,9 @@ do {
 }
 ```
 
-The setup commands deliberately do not write bootstrap code because
-configuration and credentials belong to the application. React Native
+The setup commands deliberately do not write bootstrap code or the
+configuration file because configuration and credentials belong to the
+application. React Native
 autolinking registers the bridge on both platforms; do not register it
 manually.
 
@@ -225,7 +232,8 @@ or the EDOT iOS
 ## Remove the package
 
 1. Remove both native bootstrap calls and imports.
-2. Remove the EDOT Android plugin applications and declarations.
+2. Remove the EDOT Android plugin applications and declarations, the
+   configuration Gradle script line, and `elastic-otel-config.json`.
 3. Remove the iOS Podfile line that forces dynamic frameworks only if no other
    dependency needs it; choose any new deployment target based on the remaining
    application dependencies.
