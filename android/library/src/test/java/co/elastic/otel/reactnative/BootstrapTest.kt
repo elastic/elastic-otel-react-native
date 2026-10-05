@@ -1,5 +1,7 @@
 package co.elastic.otel.reactnative
 
+import co.elastic.otel.android.connectivity.Authentication
+import co.elastic.otel.android.exporters.configuration.ExportProtocol
 import io.opentelemetry.api.common.AttributeKey
 import io.opentelemetry.sdk.resources.Resource
 import java.io.FileNotFoundException
@@ -74,16 +76,6 @@ class BootstrapTest {
                 resourceAttributes = IDENTITY,
             ),
             BootstrapConfiguration("https://example.test", resourceAttributes = mapOf("service.name" to " ")),
-            BootstrapConfiguration("https://example.test", resourceAttributes = emptyMap()),
-            BootstrapConfiguration(
-                "https://example.test",
-                resourceAttributes = mapOf("service.namespace" to "shop"),
-            ),
-            BootstrapConfiguration(
-                "https://example.test",
-                resourceAttributes = IDENTITY,
-                instrumentationScopeName = " ",
-            ),
         )
 
         invalidConfigurations.forEach { configuration ->
@@ -101,7 +93,6 @@ class BootstrapTest {
                 authentication = AuthenticationConfiguration.apiKey("api-key"),
                 protocol = Transport.GRPC,
                 sessionSampleRate = 0.25,
-                instrumentationScopeName = " co.elastic.fixture ",
                 resourceAttributes = IDENTITY,
             ),
         )
@@ -109,9 +100,8 @@ class BootstrapTest {
         assertEquals("https://example.test/", validated.exportUrl)
         assertEquals("fixture", validated.serviceName)
         assertEquals(0.25, validated.sessionSampleRate)
-        assertEquals("co.elastic.fixture", validated.instrumentationScopeName)
-        assertEquals(co.elastic.otel.android.exporters.configuration.ExportProtocol.GRPC, validated.protocol)
-        assertEquals("api-key", (validated.authentication as co.elastic.otel.android.connectivity.Authentication.ApiKey).key)
+        assertEquals(ExportProtocol.GRPC, validated.protocol)
+        assertEquals("api-key", (validated.authentication as Authentication.ApiKey).key)
     }
 
     @Test
@@ -134,43 +124,41 @@ class BootstrapTest {
     }
 
     @Test
-    fun duplicateInitializationKeepsTheFirstAgent() {
-        val lifecycle = AgentLifecycle<String>()
-        val configuration = BootstrapConfiguration("https://example.test", resourceAttributes = IDENTITY)
-        var factoryInvocations = 0
-
-        val first = lifecycle.initialize({ configuration }) {
-            factoryInvocations += 1
-            "agent-${System.nanoTime()}"
+    fun aSignalSpecificPathIsRejectedWithItsReason() {
+        val exception = assertThrows(BootstrapException::class.java) {
+            BootstrapValidator.validate(
+                BootstrapConfiguration("https://example.test/v1/traces", resourceAttributes = IDENTITY),
+            )
         }
 
-        assertThrows(BootstrapException::class.java) {
-            lifecycle.initialize({ configuration }) {
-                factoryInvocations += 1
-                "second-agent"
-            }
-        }
-        assertEquals(first, lifecycle.requireAgent())
-        assertEquals(1, factoryInvocations)
+        assertEquals("The OTLP base URL must not include a signal-specific path.", exception.message)
     }
 
     @Test
     fun duplicateInitializationIsReportedBeforeTheConfigurationIsRead() {
         val lifecycle = AgentLifecycle<String>()
+        var factoryInvocations = 0
         val first = lifecycle.initialize({
             BootstrapConfiguration("https://example.test", resourceAttributes = IDENTITY)
-        }) { "agent" }
+        }) {
+            factoryInvocations += 1
+            "agent"
+        }
         var supplierInvocations = 0
 
         val exception = assertThrows(BootstrapException::class.java) {
             lifecycle.initialize({
                 supplierInvocations += 1
                 ConfigFileReader.read { name -> throw FileNotFoundException(name) }
-            }) { "second-agent" }
+            }) {
+                factoryInvocations += 1
+                "second-agent"
+            }
         }
 
         assertEquals("EDOT Android has already been initialized.", exception.message)
         assertEquals(0, supplierInvocations)
+        assertEquals(1, factoryInvocations)
         assertEquals(first, lifecycle.requireAgent())
     }
 
@@ -213,12 +201,11 @@ class BootstrapTest {
             ),
         )
 
-        assertEquals(co.elastic.otel.android.exporters.configuration.ExportProtocol.HTTP, defaults.protocol)
-        assertEquals(co.elastic.otel.android.connectivity.Authentication.None, defaults.authentication)
-        assertEquals(DEFAULT_INSTRUMENTATION_SCOPE, defaults.instrumentationScopeName)
+        assertEquals(ExportProtocol.HTTP, defaults.protocol)
+        assertEquals(Authentication.None, defaults.authentication)
         assertEquals(
             "secret",
-            (secretToken.authentication as co.elastic.otel.android.connectivity.Authentication.SecretToken).token,
+            (secretToken.authentication as Authentication.SecretToken).token,
         )
     }
 

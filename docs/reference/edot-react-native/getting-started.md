@@ -90,9 +90,7 @@ after them. The script copies `elastic-otel-config.json` from the project root
 into the application assets at build time; see
 [Configuration file](configuration.md#configuration-file). Before writing, the
 command verifies the `react-native` dependency, the autolinking anchors, and
-any existing EDOT Android plugin and script declarations. Its result also
-reports whether `elastic-otel-config.json` exists, without failing when it does
-not.
+any existing EDOT Android plugin and script declarations.
 
 The command never edits `MainApplication`, credentials, endpoints, manifests,
 network security, repositories, or host tool versions. It refuses conflicting
@@ -211,8 +209,7 @@ do {
       authentication: .apiKey("your-api-key"),
       transport: .http,
       sessionSampleRate: 1.0,
-      serviceName: "your-service",
-      instrumentationScopeName: "com.example.my-app"
+      serviceName: "your-service"
     )
   )
 } catch {

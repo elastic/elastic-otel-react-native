@@ -31,7 +31,6 @@ final class TelemetryTests: XCTestCase {
     OpenTelemetry.registerLoggerProvider(loggerProvider: loggerProvider)
 
     telemetry = ManualTelemetry(
-      instrumentationScopeName: { "test.scope" },
       tracerProvider: { OpenTelemetry.instance.tracerProvider },
       loggerProvider: { OpenTelemetry.instance.loggerProvider }
     )
@@ -60,7 +59,10 @@ final class TelemetryTests: XCTestCase {
     XCTAssertNil(parent.parentSpanId)
     XCTAssertEqual(child.traceId, parent.traceId)
     XCTAssertEqual(child.parentSpanId, parent.spanId)
-    XCTAssertEqual(parent.instrumentationScope.name, "test.scope")
+    XCTAssertEqual(
+      parent.instrumentationScope.name,
+      "@elastic/otel-react-native"
+    )
   }
 
   func testLogsAreIndependentOrCorrelatedByExplicitHandle() throws {
@@ -93,7 +95,10 @@ final class TelemetryTests: XCTestCase {
       logs[1].spanContext?.traceId,
       spanExporter.finished.first?.traceId
     )
-    XCTAssertEqual(logs[1].instrumentationScopeInfo.name, "test.scope")
+    XCTAssertEqual(
+      logs[1].instrumentationScopeInfo.name,
+      "@elastic/otel-react-native"
+    )
   }
 
   func testInvalidHandlesProduceNoTelemetry() throws {

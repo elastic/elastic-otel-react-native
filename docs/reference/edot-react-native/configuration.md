@@ -85,8 +85,7 @@ repositories.
 
 On Android, a host that builds its configuration in code can call the
 `BootstrapConfiguration` overload instead of reading the file. This form also
-accepts a secret token through `AuthenticationConfiguration.secretToken` and a
-custom instrumentation scope:
+accepts a secret token through `AuthenticationConfiguration.secretToken`:
 
 ```kotlin
 ElasticOtelReactNative.initialize(
@@ -96,7 +95,6 @@ ElasticOtelReactNative.initialize(
         authentication = AuthenticationConfiguration.apiKey("your-api-key"),
         protocol = Transport.HTTP,
         sessionSampleRate = 1.0,
-        instrumentationScopeName = "com.example.my-app",
         resourceAttributes = mapOf(
             "service.name" to "your-service",
             "service.version" to "1.4.0",
@@ -120,8 +118,7 @@ BootstrapConfiguration(
   authentication: .apiKey("your-api-key"),
   transport: .http,
   sessionSampleRate: 1.0,
-  serviceName: "your-service",
-  instrumentationScopeName: "com.example.my-app"
+  serviceName: "your-service"
 )
 ```
 
@@ -141,7 +138,10 @@ paths to the supplied base URL. The URL scheme selects connection security.
 
 For an Android emulator reaching a local OTLP/HTTP endpoint on the host, use
 `http://10.0.2.2:4318`. For the iOS simulator, use
-`http://127.0.0.1:4318`.
+`http://127.0.0.1:4318`. When one configuration file serves both platforms, use
+`http://localhost:4318` and run `adb reverse tcp:4318 tcp:4318` so the Android
+emulator reaches the host; the reverse lasts until the emulator restarts or adb
+reconnects.
 
 ## Authentication
 
@@ -195,12 +195,6 @@ containing `,` or `=` rather than exporting a different value. Other existing
 resource attributes are preserved. The iOS `BootstrapConfiguration` does not
 set the service version, deployment environment, or other resource
 attributes.
-
-## Instrumentation scope
-
-`instrumentationScopeName` identifies manual spans and logs created through the
-bridge. It defaults to `@elastic/otel-react-native` and must not be blank. The
-configuration file always uses the default scope.
 
 ## Initialization and errors
 

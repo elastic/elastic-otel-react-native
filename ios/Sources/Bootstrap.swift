@@ -2,8 +2,6 @@ import Darwin
 import ElasticApm
 import Foundation
 
-public let defaultInstrumentationScopeName = "@elastic/otel-react-native"
-
 public enum AuthenticationConfiguration: Equatable {
   case none
   case apiKey(String)
@@ -21,22 +19,19 @@ public struct BootstrapConfiguration: Equatable {
   public let transport: Transport
   public let sessionSampleRate: Double?
   public let serviceName: String
-  public let instrumentationScopeName: String
 
   public init(
     exportUrl: String,
     authentication: AuthenticationConfiguration = .none,
     transport: Transport = .http,
     sessionSampleRate: Double? = nil,
-    serviceName: String,
-    instrumentationScopeName: String = defaultInstrumentationScopeName
+    serviceName: String
   ) {
     self.exportUrl = exportUrl
     self.authentication = authentication
     self.transport = transport
     self.sessionSampleRate = sessionSampleRate
     self.serviceName = serviceName
-    self.instrumentationScopeName = instrumentationScopeName
   }
 }
 
@@ -58,7 +53,6 @@ struct ValidatedBootstrapConfiguration: Equatable {
   let transport: Transport
   let sessionSampleRate: Double?
   let serviceName: String
-  let instrumentationScopeName: String
 }
 
 enum BootstrapValidator {
@@ -111,16 +105,6 @@ enum BootstrapValidator {
       )
     }
 
-    let instrumentationScopeName =
-      configuration.instrumentationScopeName.trimmingCharacters(
-        in: .whitespacesAndNewlines
-      )
-    guard !instrumentationScopeName.isEmpty else {
-      throw BootstrapException(
-        "The instrumentation scope name must not be blank."
-      )
-    }
-
     if let sampleRate = configuration.sessionSampleRate,
       !sampleRate.isFinite || !(0.0 ... 1.0).contains(sampleRate)
     {
@@ -149,8 +133,7 @@ enum BootstrapValidator {
       authentication: configuration.authentication,
       transport: configuration.transport,
       sessionSampleRate: configuration.sessionSampleRate,
-      serviceName: serviceName,
-      instrumentationScopeName: instrumentationScopeName
+      serviceName: serviceName
     )
   }
 }
@@ -231,15 +214,11 @@ enum ResourceEnvironment {
 
 public enum ElasticOtelReactNative {
   private static let lifecycle = AgentLifecycle<ElasticApmAgent>()
-  private static let scopeLock = NSLock()
-  private static var configuredInstrumentationScopeName =
-    defaultInstrumentationScopeName
 
   public static func initialize(
     _ configuration: BootstrapConfiguration
   ) throws {
     let validated = try BootstrapValidator.validate(configuration)
-    var scopeName = defaultInstrumentationScopeName
     _ = try lifecycle.initialize(configuration: validated) { validated in
       guard ElasticApmAgent.shared() == nil else {
         throw BootstrapException(
@@ -270,13 +249,8 @@ public enum ElasticOtelReactNative {
       guard let agent = ElasticApmAgent.shared() else {
         throw BootstrapException("EDOT iOS failed to initialize.")
       }
-      scopeName = validated.instrumentationScopeName
       return agent
     }
-
-    scopeLock.lock()
-    configuredInstrumentationScopeName = scopeName
-    scopeLock.unlock()
   }
 
   public static var isReady: Bool {
@@ -285,11 +259,5 @@ public enum ElasticOtelReactNative {
 
   static func requireReady() throws {
     _ = try lifecycle.requireAgent()
-  }
-
-  static var instrumentationScopeName: String {
-    scopeLock.lock()
-    defer { scopeLock.unlock() }
-    return configuredInstrumentationScopeName
   }
 }

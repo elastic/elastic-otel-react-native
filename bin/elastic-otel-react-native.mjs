@@ -20,7 +20,6 @@ export const PLUGINS = [
   'co.elastic.otel.android.instrumentation.okhttp',
   'co.elastic.otel.android.instrumentation.crash',
 ];
-export const CONFIG_FILE = 'elastic-otel-config.json';
 export const CONFIG_SCRIPT_LINE =
   'apply from: "../../node_modules/@elastic/otel-react-native/android/elastic-otel-config.gradle"';
 

@@ -17,7 +17,6 @@ import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import {
-  CONFIG_FILE,
   CONFIG_SCRIPT_LINE,
   EDOT_VERSION,
   PLUGINS,
@@ -31,6 +30,7 @@ const EXTERNAL_FIXTURE = join(ROOT, 'build', 'external-fixture');
 const BIN = join(ROOT, 'bin', 'elastic-otel-react-native.mjs');
 const ROOT_BUILD = 'android/build.gradle';
 const APP_BUILD = 'android/app/build.gradle';
+const CONFIG_FILE = 'elastic-otel-config.json';
 
 function digest(content) {
   return createHash('sha256').update(content).digest('hex');

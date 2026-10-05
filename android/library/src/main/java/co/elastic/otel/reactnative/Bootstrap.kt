@@ -9,8 +9,6 @@ import co.elastic.otel.android.interceptor.Interceptor
 import io.opentelemetry.sdk.resources.Resource
 import java.net.URI
 
-internal const val DEFAULT_INSTRUMENTATION_SCOPE = "@elastic/otel-react-native"
-
 // EDOT Android identifies its OpAMP central configuration client from the
 // builder's service values, so these resource attributes go to its setters
 // instead of the resource interceptor.
@@ -24,7 +22,6 @@ data class BootstrapConfiguration(
     val authentication: AuthenticationConfiguration = AuthenticationConfiguration.none(),
     val protocol: Transport = Transport.HTTP,
     val sessionSampleRate: Double? = null,
-    val instrumentationScopeName: String = DEFAULT_INSTRUMENTATION_SCOPE,
     val resourceAttributes: Map<String, String>,
 )
 
@@ -53,7 +50,6 @@ internal data class ValidatedBootstrapConfiguration(
     val authentication: Authentication,
     val protocol: ExportProtocol,
     val sessionSampleRate: Double?,
-    val instrumentationScopeName: String,
     val serviceName: String,
     val serviceVersion: String?,
     val deploymentEnvironmentName: String?,
@@ -90,10 +86,6 @@ internal object BootstrapValidator {
         ) {
             throw BootstrapException("The OTLP base URL must not include a signal-specific path.")
         }
-        val instrumentationScopeName = configuration.instrumentationScopeName.trim()
-        if (instrumentationScopeName.isEmpty()) {
-            throw BootstrapException("The instrumentation scope name must not be blank.")
-        }
         val sampleRate = configuration.sessionSampleRate
         if (sampleRate != null && (!sampleRate.isFinite() || sampleRate !in 0.0..1.0)) {
             throw BootstrapException("The session sample rate must be between 0 and 1.")
@@ -112,7 +104,6 @@ internal object BootstrapValidator {
                 ExportProtocol.GRPC
             },
             sessionSampleRate = sampleRate,
-            instrumentationScopeName = instrumentationScopeName,
             serviceName = serviceName,
             serviceVersion = attributes[SERVICE_VERSION],
             deploymentEnvironmentName = attributes[DEPLOYMENT_ENVIRONMENT_NAME],
@@ -192,8 +183,6 @@ internal class AgentLifecycle<A> {
 
 object ElasticOtelReactNative {
     private val lifecycle = AgentLifecycle<ElasticOtelAgent>()
-    @Volatile
-    private var configuredInstrumentationScopeName = DEFAULT_INSTRUMENTATION_SCOPE
 
     // Reads elastic-otel-config.json, which the bridge's Gradle script copies
     // from the React Native project root into the app assets.
@@ -208,10 +197,8 @@ object ElasticOtelReactNative {
     private fun initialize(
         application: Application,
         configuration: () -> BootstrapConfiguration,
-    ): ElasticOtelAgent {
-        var instrumentationScopeName = DEFAULT_INSTRUMENTATION_SCOPE
-        val agent = lifecycle.initialize(configuration) { validated ->
-            instrumentationScopeName = validated.instrumentationScopeName
+    ): ElasticOtelAgent =
+        lifecycle.initialize(configuration) { validated ->
             ElasticApmAgent.builder(application)
                 .setExportUrl(validated.exportUrl)
                 .setExportAuthentication(validated.authentication)
@@ -227,14 +214,9 @@ object ElasticOtelReactNative {
                 }
                 .build()
         }
-        configuredInstrumentationScopeName = instrumentationScopeName
-        return agent
-    }
 
     @JvmStatic
     fun isReady(): Boolean = lifecycle.isInitialized()
 
     internal fun requireAgent(): ElasticOtelAgent = lifecycle.requireAgent()
-
-    internal fun instrumentationScopeName(): String = configuredInstrumentationScopeName
 }

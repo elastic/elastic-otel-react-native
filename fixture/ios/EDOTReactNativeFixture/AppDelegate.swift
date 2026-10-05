@@ -19,8 +19,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
       try ElasticOtelReactNative.initialize(
         BootstrapConfiguration(
           exportUrl: "http://127.0.0.1:4318",
-          serviceName: "edot-react-native-fixture",
-          instrumentationScopeName: "fixture.react-native"
+          serviceName: "edot-react-native-fixture"
         )
       )
     } catch {

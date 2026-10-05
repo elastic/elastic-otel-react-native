@@ -7,9 +7,6 @@ public final class ElasticOtelReactNativeModule: NSObject {
   private static let errorCode = "E_ELASTIC_OTEL_REACT_NATIVE"
 
   private let telemetry = ManualTelemetry(
-    instrumentationScopeName: {
-      ElasticOtelReactNative.instrumentationScopeName
-    },
     tracerProvider: {
       try ElasticOtelReactNative.requireReady()
       return OpenTelemetry.instance.tracerProvider

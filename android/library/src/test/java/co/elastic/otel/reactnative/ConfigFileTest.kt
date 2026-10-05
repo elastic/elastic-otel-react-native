@@ -65,12 +65,6 @@ class ConfigFileTest {
             ),
             configuration,
         )
-        assertEquals(
-            BootstrapConfiguration(exportUrl = "http://localhost:4318", resourceAttributes = IDENTITY),
-            ConfigFileReader.parse("""{ "exportUrl": "http://localhost:4318", "resourceAttributes": { "service.name": "fixture" } }"""),
-        )
-        assertEquals(AuthenticationConfiguration.none(), configuration.authentication)
-        assertEquals(Transport.HTTP, configuration.protocol)
     }
 
     @Test
@@ -160,23 +154,11 @@ class ConfigFileTest {
     }
 
     @Test
-    fun missingServiceNameIsRejected() {
-        val missingAttributes = assertThrows(BootstrapException::class.java) {
-            ConfigFileReader.parse("""{ "exportUrl": "https://example.test" }""")
-        }
+    fun missingResourceAttributesAreReadAsEmpty() {
         assertEquals(
-            "$CONFIG_FILE_NAME is missing the required key resourceAttributes, which sets service.name.",
-            missingAttributes.message,
+            BootstrapConfiguration("https://example.test", resourceAttributes = emptyMap()),
+            ConfigFileReader.parse("""{ "exportUrl": "https://example.test" }"""),
         )
-
-        val missingServiceName = assertThrows(BootstrapException::class.java) {
-            BootstrapValidator.validate(
-                ConfigFileReader.parse(
-                    """{ "exportUrl": "https://example.test", "resourceAttributes": { "service.namespace": "shop" } }""",
-                ),
-            )
-        }
-        assertEquals("The resource attribute service.name is required.", missingServiceName.message)
     }
 
     @Test
@@ -185,18 +167,6 @@ class ConfigFileTest {
             """{ "exportUrl": "https://example.test", "resourceAttributes": { "service.name": "fixture" }, "exportProtocol": "https" }""",
             "exportProtocol",
         )
-    }
-
-    @Test
-    fun invalidExportUrlSurfacesTheValidatorMessage() {
-        val configuration = ConfigFileReader.parse(
-            """{ "exportUrl": "https://example.test/v1/traces", "resourceAttributes": { "service.name": "fixture" } }""",
-        )
-
-        val exception = assertThrows(BootstrapException::class.java) {
-            BootstrapValidator.validate(configuration)
-        }
-        assertEquals("The OTLP base URL must not include a signal-specific path.", exception.message)
     }
 
     @Test

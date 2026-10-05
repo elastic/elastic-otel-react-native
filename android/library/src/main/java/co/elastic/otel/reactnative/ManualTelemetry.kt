@@ -4,14 +4,15 @@ import io.opentelemetry.api.OpenTelemetry
 import io.opentelemetry.api.trace.Span
 import io.opentelemetry.context.Context
 
+internal const val DEFAULT_INSTRUMENTATION_SCOPE = "@elastic/otel-react-native"
+
 internal class ManualTelemetry(
-    private val instrumentationScopeName: () -> String = { DEFAULT_INSTRUMENTATION_SCOPE },
     private val openTelemetry: () -> OpenTelemetry,
 ) {
     private val spans = SpanHandleStore<Span> { it.end() }
 
     fun startSpan(name: String, parentSpanHandle: String?): String {
-        val tracer = openTelemetry().getTracer(instrumentationScopeName())
+        val tracer = openTelemetry().getTracer(DEFAULT_INSTRUMENTATION_SCOPE)
         val spanName = BridgeInput.spanName(name)
         if (parentSpanHandle == null) {
             return spans.retain(
@@ -37,7 +38,7 @@ internal class ManualTelemetry(
         val level = BridgeInput.severity(severity)
         val builder = openTelemetry()
             .logsBridge
-            .get(instrumentationScopeName())
+            .get(DEFAULT_INSTRUMENTATION_SCOPE)
             .logRecordBuilder()
             .setBody(BridgeInput.logBody(body))
             .setSeverity(level)

@@ -11,8 +11,7 @@ final class BootstrapTests: XCTestCase {
         authentication: .apiKey("key"),
         transport: .grpc,
         sessionSampleRate: 0.25,
-        serviceName: " service ",
-        instrumentationScopeName: " scope "
+        serviceName: " service "
       )
     )
 
@@ -24,7 +23,6 @@ final class BootstrapTests: XCTestCase {
     XCTAssertEqual(validated.transport, .grpc)
     XCTAssertEqual(validated.sessionSampleRate, 0.25)
     XCTAssertEqual(validated.serviceName, "service")
-    XCTAssertEqual(validated.instrumentationScopeName, "scope")
   }
 
   func testRejectsInvalidBootstrapInputs() {
@@ -78,14 +76,6 @@ final class BootstrapTests: XCTestCase {
           serviceName: "service,other"
         ),
         "On iOS, the service name must not contain ',' or '='."
-      ),
-      (
-        BootstrapConfiguration(
-          exportUrl: valid.exportUrl,
-          serviceName: valid.serviceName,
-          instrumentationScopeName: " "
-        ),
-        "The instrumentation scope name must not be blank."
       ),
       (
         BootstrapConfiguration(

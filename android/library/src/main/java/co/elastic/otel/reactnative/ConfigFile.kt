@@ -150,9 +150,7 @@ internal object ConfigFileReader {
 
     private fun resourceAttributes(document: Map<String, Any?>): Map<String, String> {
         if ("resourceAttributes" !in document) {
-            throw BootstrapException(
-                "$CONFIG_FILE_NAME is missing the required key resourceAttributes, which sets service.name.",
-            )
+            return emptyMap()
         }
         val attributes = document["resourceAttributes"] as? Map<*, *>
             ?: throw BootstrapException("$CONFIG_FILE_NAME key resourceAttributes must be an object.")

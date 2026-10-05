@@ -2,6 +2,8 @@ import { readFile } from 'node:fs/promises';
 import { dirname, extname, join, normalize, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import Ajv2020 from 'ajv/dist/2020.js';
+
 import {
   CONFIG_SCRIPT_LINE,
   PLUGINS,
@@ -230,6 +232,8 @@ if (tableKeys.sort().join() !== [...schemaKeys].sort().join()) {
 const configExamples = [
   ...configurationDoc.matchAll(/^```json\r?\n([\s\S]*?)^```$/gm),
 ].map((match) => match[1]);
+const ajv = new Ajv2020();
+const validateConfig = ajv.compile(configSchema);
 if (configExamples.length === 0) {
   throw new Error('The configuration doc has no configuration file example.');
 }
@@ -242,19 +246,10 @@ for (const example of configExamples) {
       `The configuration file example is not valid JSON: ${error.message}`,
     );
   }
-  for (const key of Object.keys(parsed)) {
-    if (!(key in configSchema.properties)) {
-      throw new Error(
-        `The configuration file example uses the unknown key ${key}.`,
-      );
-    }
-  }
-  for (const key of configSchema.required) {
-    if (!(key in parsed)) {
-      throw new Error(
-        `The configuration file example is missing the required key ${key}.`,
-      );
-    }
+  if (!validateConfig(parsed)) {
+    throw new Error(
+      `The configuration file example does not match the schema: ${ajv.errorsText(validateConfig.errors)}`,
+    );
   }
 }
 

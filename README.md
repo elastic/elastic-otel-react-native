@@ -75,8 +75,7 @@ do {
       authentication: .apiKey("your-api-key"),
       transport: .http,
       sessionSampleRate: 1.0,
-      serviceName: "your-service",
-      instrumentationScopeName: "com.example.my-app"
+      serviceName: "your-service"
     )
   )
 } catch {

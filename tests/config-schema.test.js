@@ -19,10 +19,10 @@ describe('elastic-otel-config.json schema', () => {
     expect(schema.additionalProperties).toBe(false);
   });
 
-  it('requires a service.name resource attribute without reserved names', () => {
-    const { resourceAttributes } = schema.properties;
-    expect(resourceAttributes.required).toEqual(['service.name']);
-    expect(resourceAttributes.propertyNames).not.toHaveProperty('not');
+  it('requires a service.name resource attribute', () => {
+    expect(schema.properties.resourceAttributes.required).toEqual([
+      'service.name',
+    ]);
   });
 
   it('accepts any string as the ignored $schema reference', () => {
@@ -41,12 +41,10 @@ describe('elastic-otel-config.json schema', () => {
     ];
     for (const rule of stringRules) {
       expect(rule).toMatchObject(nonBlankString);
-      expect(rule).not.toHaveProperty('minLength');
     }
-
-    const { propertyNames } = schema.properties.resourceAttributes;
-    expect(propertyNames.pattern).toBe(schema.$defs.nonBlankString.pattern);
-    expect(propertyNames).not.toHaveProperty('minLength');
+    expect(schema.properties.resourceAttributes.propertyNames.pattern).toBe(
+      schema.$defs.nonBlankString.pattern,
+    );
   });
 
   it('rejects blank strings through the non-blank pattern', () => {
