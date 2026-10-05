@@ -20,11 +20,11 @@ and `babel.config.js`:
   "exportUrl": "https://your-otlp-endpoint.example",
   "apiKey": "your-api-key",
   "exportProtocol": "http",
-  "serviceName": "your-service",
-  "serviceVersion": "1.4.0",
-  "deploymentEnvironmentName": "production",
   "sessionSampleRate": 1,
   "resourceAttributes": {
+    "service.name": "your-service",
+    "service.version": "1.4.0",
+    "deployment.environment.name": "production",
     "service.namespace": "shop"
   }
 }
@@ -34,26 +34,24 @@ The `$schema` line points your editor at the JSON schema shipped in the
 package, which gives completion and validation while you edit. The bridge
 ignores it.
 
-| Key                         | Type                    | Required | Default                 | Sets                                                    |
-| --------------------------- | ----------------------- | -------- | ----------------------- | ------------------------------------------------------- |
-| `$schema`                   | string                  | no       |                         | Nothing. Editors use it; the bridge ignores it.         |
-| `exportUrl`                 | string                  | yes      |                         | The OTLP base URL. See [OTLP base URL](#otlp-base-url). |
-| `apiKey`                    | string                  | no       | no authentication       | The API key sent with each export request.              |
-| `exportProtocol`            | `"http"` or `"grpc"`    | no       | `"http"`                | The OTLP transport.                                     |
-| `serviceName`               | string                  | yes      |                         | `service.name`                                          |
-| `serviceVersion`            | string                  | no       | the application version | `service.version`                                       |
-| `deploymentEnvironmentName` | string                  | no       | not set                 | `deployment.environment.name`                           |
-| `sessionSampleRate`         | number from 0 to 1      | no       | `1`                     | The fraction of sessions that are recorded.             |
-| `resourceAttributes`        | object of string values | no       | `{}`                    | One resource attribute for each entry.                  |
+| Key                  | Type                    | Required                 | Default           | Sets                                                    |
+| -------------------- | ----------------------- | ------------------------ | ----------------- | ------------------------------------------------------- |
+| `$schema`            | string                  | no                       |                   | Nothing. Editors use it; the bridge ignores it.         |
+| `exportUrl`          | string                  | yes                      |                   | The OTLP base URL. See [OTLP base URL](#otlp-base-url). |
+| `apiKey`             | string                  | no                       | no authentication | The API key sent with each export request.              |
+| `exportProtocol`     | `"http"` or `"grpc"`    | no                       | `"http"`          | The OTLP transport.                                     |
+| `sessionSampleRate`  | number from 0 to 1      | no                       | `1`               | The fraction of sessions that are recorded.             |
+| `resourceAttributes` | object of string values | yes, with `service.name` |                   | One resource attribute for each entry.                  |
 
-Use OpenTelemetry semantic convention keys in `resourceAttributes`, such as
-`service.namespace`. `service.name`, `service.version`, and
-`deployment.environment.name` are rejected there because their dedicated keys
-set them.
+Use OpenTelemetry semantic convention keys in `resourceAttributes`.
+`service.name` is required. `service.version` defaults to the application
+version. Set `deployment.environment.name` and other attributes, such as
+`service.namespace`, as needed. See [Service identity](#service-identity).
 
 The file accepts only the keys in this table. An unknown key, such as a
 misspelled `apikey`, is rejected rather than ignored, so a typo cannot silently
-drop a setting. String values must not be blank.
+drop a setting. String values must not be blank, except `$schema`, which only
+needs to be a string.
 
 ### How the file reaches the app
 
@@ -68,8 +66,8 @@ Rebuild the app after you change the file.
 
 ### Configuration errors
 
-A missing file, invalid JSON, an unknown key, a value of the wrong type, or an
-invalid value throws `BootstrapException` from
+A missing file, invalid JSON, an unknown key, a duplicate key, a value of the
+wrong type, or an invalid value throws `BootstrapException` from
 `ElasticOtelReactNative.initialize(this)`. The message names the file and the
 offending key or value. Telemetry is not initialized. Because the file is
 bundled at build time, the error appears on the first run of the build that
@@ -98,11 +96,13 @@ ElasticOtelReactNative.initialize(
         authentication = AuthenticationConfiguration.apiKey("your-api-key"),
         protocol = Transport.HTTP,
         sessionSampleRate = 1.0,
-        serviceName = "your-service",
         instrumentationScopeName = "com.example.my-app",
-        serviceVersion = "1.4.0",
-        deploymentEnvironmentName = "production",
-        resourceAttributes = mapOf("service.namespace" to "shop"),
+        resourceAttributes = mapOf(
+            "service.name" to "your-service",
+            "service.version" to "1.4.0",
+            "deployment.environment.name" to "production",
+            "service.namespace" to "shop",
+        ),
     ),
 )
 ```
@@ -180,12 +180,13 @@ decision.
 
 ## Service identity
 
-`serviceName` is required and must not be blank. Use a stable name that
-identifies the mobile application as the telemetry-producing service.
-
-On Android, `serviceVersion`, `deploymentEnvironmentName`, and
-`resourceAttributes` add to the resource attributes EDOT Android sets, such as
-the device and operating system attributes.
+On Android, the `service.name` resource attribute is required and must not be
+blank. Use a stable name that identifies the mobile application as the
+telemetry-producing service. When `service.version` is absent, EDOT Android
+uses the application version. The bridge passes `service.name`,
+`service.version`, and `deployment.environment.name` to EDOT Android as its
+service identity. The other entries add to the resource attributes EDOT Android
+sets, such as the device and operating system attributes.
 
 EDOT iOS exposes service-name override through
 `OTEL_RESOURCE_ATTRIBUTES`. Its public parser separates entries on commas and

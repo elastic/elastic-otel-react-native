@@ -5,7 +5,14 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 
+private val IDENTITY = mapOf("service.name" to "fixture")
+
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [26])
 class ConfigFileTest {
     @Test
     fun completeDocumentMapsEveryKey() {
@@ -16,11 +23,13 @@ class ConfigFileTest {
               "exportUrl": "https://example.test",
               "apiKey": "api-key",
               "exportProtocol": "grpc",
-              "serviceName": "fixture",
-              "serviceVersion": "1.2.3",
-              "deploymentEnvironmentName": "production",
               "sessionSampleRate": 0.5,
-              "resourceAttributes": { "service.namespace": "shop" }
+              "resourceAttributes": {
+                "service.name": "fixture",
+                "service.version": "1.2.3",
+                "deployment.environment.name": "production",
+                "service.namespace": "shop"
+              }
             }
             """,
         )
@@ -31,10 +40,12 @@ class ConfigFileTest {
                 authentication = AuthenticationConfiguration.apiKey("api-key"),
                 protocol = Transport.GRPC,
                 sessionSampleRate = 0.5,
-                serviceName = "fixture",
-                serviceVersion = "1.2.3",
-                deploymentEnvironmentName = "production",
-                resourceAttributes = mapOf("service.namespace" to "shop"),
+                resourceAttributes = mapOf(
+                    "service.name" to "fixture",
+                    "service.version" to "1.2.3",
+                    "deployment.environment.name" to "production",
+                    "service.namespace" to "shop",
+                ),
             ),
             configuration,
         )
@@ -43,31 +54,30 @@ class ConfigFileTest {
     @Test
     fun minimalDocumentKeepsDefaults() {
         val configuration = ConfigFileReader.parse(
-            """{ "exportUrl": "http://localhost:4318", "serviceName": "fixture", "sessionSampleRate": 1 }""",
+            """{ "exportUrl": "http://localhost:4318", "resourceAttributes": { "service.name": "fixture" }, "sessionSampleRate": 1 }""",
         )
 
         assertEquals(
             BootstrapConfiguration(
                 exportUrl = "http://localhost:4318",
-                serviceName = "fixture",
+                resourceAttributes = IDENTITY,
                 sessionSampleRate = 1.0,
             ),
             configuration,
         )
         assertEquals(
-            BootstrapConfiguration(exportUrl = "http://localhost:4318", serviceName = "fixture"),
-            ConfigFileReader.parse("""{ "exportUrl": "http://localhost:4318", "serviceName": "fixture" }"""),
+            BootstrapConfiguration(exportUrl = "http://localhost:4318", resourceAttributes = IDENTITY),
+            ConfigFileReader.parse("""{ "exportUrl": "http://localhost:4318", "resourceAttributes": { "service.name": "fixture" } }"""),
         )
         assertEquals(AuthenticationConfiguration.none(), configuration.authentication)
         assertEquals(Transport.HTTP, configuration.protocol)
-        assertEquals(emptyMap<String, String>(), configuration.resourceAttributes)
     }
 
     @Test
     fun unknownTopLevelKeysAreRejected() {
-        for (key in listOf("apikey", "transport", "android")) {
+        for (key in listOf("apikey", "transport", "android", "serviceName", "deploymentEnvironmentName")) {
             assertRejected(
-                """{ "exportUrl": "https://example.test", "serviceName": "fixture", "$key": "value" }""",
+                """{ "exportUrl": "https://example.test", "resourceAttributes": { "service.name": "fixture" }, "$key": "value" }""",
                 key,
             )
         }
@@ -76,41 +86,103 @@ class ConfigFileTest {
     @Test
     fun mistypedValuesAreRejected() {
         assertRejected(
-            """{ "exportUrl": "https://example.test", "serviceName": "fixture", "sessionSampleRate": "1" }""",
+            """{ "exportUrl": "https://example.test", "resourceAttributes": { "service.name": "fixture" }, "sessionSampleRate": "1" }""",
             "sessionSampleRate",
         )
         assertRejected(
-            """{ "exportUrl": "https://example.test", "serviceName": "fixture", "apiKey": 42 }""",
+            """{ "exportUrl": "https://example.test", "resourceAttributes": { "service.name": "fixture" }, "apiKey": 42 }""",
             "apiKey",
         )
         assertRejected(
-            """{ "exportUrl": "https://example.test", "serviceName": "fixture", "resourceAttributes": { "service.namespace": 1 } }""",
+            """{ "exportUrl": "https://example.test", "resourceAttributes": { "service.name": "fixture", "service.namespace": 1 } }""",
             "resourceAttributes.service.namespace",
         )
         assertRejected(
-            """{ "exportUrl": "https://example.test", "serviceName": "fixture", "resourceAttributes": ["a"] }""",
+            """{ "exportUrl": "https://example.test", "resourceAttributes": ["a"] }""",
             "resourceAttributes",
         )
         assertRejected(
-            """{ "exportUrl": "https://example.test", "serviceName": null }""",
-            "serviceName",
+            """{ "exportUrl": "https://example.test", "resourceAttributes": null }""",
+            "resourceAttributes",
         )
-        assertRejected("""{ "serviceName": "fixture" }""", "exportUrl")
+        assertRejected(
+            """{ "${'$'}schema": 1, "exportUrl": "https://example.test", "resourceAttributes": { "service.name": "fixture" } }""",
+            "${'$'}schema",
+        )
+        assertRejected("""{ "resourceAttributes": { "service.name": "fixture" } }""", "exportUrl")
         assertRejected("""["https://example.test"]""", CONFIG_FILE_NAME)
     }
 
     @Test
-    fun blankSchemaReferenceIsRejected() {
-        assertRejected(
-            """{ "${'$'}schema": " ", "exportUrl": "https://example.test", "serviceName": "fixture" }""",
-            "${'$'}schema",
+    fun nonStrictJsonSyntaxIsRejected() {
+        val documents = listOf(
+            """{ "exportUrl": "https://example.test", // comment
+              "resourceAttributes": { "service.name": "fixture" } }""",
+            """{ "exportUrl": 'https://example.test', "resourceAttributes": { "service.name": "fixture" } }""",
+            """{ exportUrl: "https://example.test", "resourceAttributes": { "service.name": "fixture" } }""",
+            """{ "exportUrl": "https://example.test", "resourceAttributes": { "service.name": "fixture" } } {}""",
+            """{ "exportUrl": "https://example.test", "resourceAttributes": { "service.name": "fixture" } } x""",
         )
+
+        for (json in documents) {
+            val exception = assertThrows(BootstrapException::class.java) { ConfigFileReader.parse(json) }
+            assertTrue(
+                exception.message!!,
+                exception.message!!.startsWith("$CONFIG_FILE_NAME must contain one JSON object: "),
+            )
+        }
+    }
+
+    @Test
+    fun duplicateKeysAreRejected() {
+        assertEquals(
+            "$CONFIG_FILE_NAME contains the duplicate key exportUrl.",
+            assertThrows(BootstrapException::class.java) {
+                ConfigFileReader.parse(
+                    """{ "exportUrl": "https://a.test", "exportUrl": "https://b.test", "resourceAttributes": { "service.name": "fixture" } }""",
+                )
+            }.message,
+        )
+        assertRejected(
+            """{ "exportUrl": "https://example.test", "resourceAttributes": { "service.name": "fixture", "service.namespace": "a", "service.namespace": "b" } }""",
+            "duplicate key resourceAttributes.service.namespace",
+        )
+    }
+
+    @Test
+    fun schemaReferenceIsIgnored() {
+        assertEquals(
+            BootstrapConfiguration("https://example.test", resourceAttributes = IDENTITY),
+            ConfigFileReader.parse(
+                """{ "${'$'}schema": " ", "exportUrl": "https://example.test", "resourceAttributes": { "service.name": "fixture" } }""",
+            ),
+        )
+    }
+
+    @Test
+    fun missingServiceNameIsRejected() {
+        val missingAttributes = assertThrows(BootstrapException::class.java) {
+            ConfigFileReader.parse("""{ "exportUrl": "https://example.test" }""")
+        }
+        assertEquals(
+            "$CONFIG_FILE_NAME is missing the required key resourceAttributes, which sets service.name.",
+            missingAttributes.message,
+        )
+
+        val missingServiceName = assertThrows(BootstrapException::class.java) {
+            BootstrapValidator.validate(
+                ConfigFileReader.parse(
+                    """{ "exportUrl": "https://example.test", "resourceAttributes": { "service.namespace": "shop" } }""",
+                ),
+            )
+        }
+        assertEquals("The resource attribute service.name is required.", missingServiceName.message)
     }
 
     @Test
     fun unsupportedExportProtocolIsRejected() {
         assertRejected(
-            """{ "exportUrl": "https://example.test", "serviceName": "fixture", "exportProtocol": "https" }""",
+            """{ "exportUrl": "https://example.test", "resourceAttributes": { "service.name": "fixture" }, "exportProtocol": "https" }""",
             "exportProtocol",
         )
     }
@@ -118,7 +190,7 @@ class ConfigFileTest {
     @Test
     fun invalidExportUrlSurfacesTheValidatorMessage() {
         val configuration = ConfigFileReader.parse(
-            """{ "exportUrl": "https://example.test/v1/traces", "serviceName": "fixture" }""",
+            """{ "exportUrl": "https://example.test/v1/traces", "resourceAttributes": { "service.name": "fixture" } }""",
         )
 
         val exception = assertThrows(BootstrapException::class.java) {
@@ -149,10 +221,10 @@ class ConfigFileTest {
     @Test
     fun presentAssetIsParsed() {
         val configuration = ConfigFileReader.read {
-            """{ "exportUrl": "https://example.test", "serviceName": "fixture" }""".byteInputStream()
+            """{ "exportUrl": "https://example.test", "resourceAttributes": { "service.name": "fixture" } }""".byteInputStream()
         }
 
-        assertEquals(BootstrapConfiguration("https://example.test", serviceName = "fixture"), configuration)
+        assertEquals(BootstrapConfiguration("https://example.test", resourceAttributes = IDENTITY), configuration)
     }
 
     private fun assertRejected(json: String, expectedName: String) {

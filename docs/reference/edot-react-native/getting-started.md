@@ -178,7 +178,9 @@ For Android, create `elastic-otel-config.json` at the project root:
   "$schema": "./node_modules/@elastic/otel-react-native/elastic-otel-config.schema.json",
   "exportUrl": "https://your-otlp-endpoint.example",
   "apiKey": "your-api-key",
-  "serviceName": "your-service"
+  "resourceAttributes": {
+    "service.name": "your-service"
+  }
 }
 ```
 

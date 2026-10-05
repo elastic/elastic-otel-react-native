@@ -9,7 +9,6 @@ import {
   realpath,
   rename,
   rm,
-  stat,
   writeFile,
 } from 'node:fs/promises';
 import { dirname, isAbsolute, relative, resolve, sep } from 'node:path';
@@ -635,39 +634,12 @@ function publicCheck(check) {
   return visible;
 }
 
-// Informational only: the configuration file never changes the outcome, code,
-// or exit code, and it is not part of the inspected state that writes depend on.
-async function inspectConfigFile(projectRoot) {
-  let found = false;
-  try {
-    found = (await stat(resolve(projectRoot, CONFIG_FILE))).isFile();
-  } catch {
-    found = false;
-  }
-  return {
-    name: 'config-file',
-    path: CONFIG_FILE,
-    status: found ? 'found' : 'missing',
-  };
-}
-
-function reportedChecks(inspection) {
-  return [...inspection.checks.map(publicCheck), inspection.configFile];
-}
-
-function withConfigFileNote(message, inspection) {
-  return inspection.configFile.status === 'missing'
-    ? `${message} ${CONFIG_FILE} was not found at the project root; ElasticOtelReactNative.initialize(this) fails at startup without it.`
-    : message;
-}
-
 async function inspectProject(projectRoot) {
-  const [files, checks, configFile] = await Promise.all([
+  const [files, checks] = await Promise.all([
     Promise.all(TARGETS.map((target) => inspectTarget(projectRoot, target))),
     Promise.all(
       SUPPORT_CHECKS.map((check) => inspectSupportCheck(projectRoot, check)),
     ),
-    inspectConfigFile(projectRoot),
   ]);
   const states = files.map((file) => file.status);
   if (
@@ -680,7 +652,6 @@ async function inspectProject(projectRoot) {
         'The Android project does not match the supported bare React Native Groovy layout.',
       files,
       checks,
-      configFile,
       refused: true,
     };
   }
@@ -699,11 +670,10 @@ async function inspectProject(projectRoot) {
         ],
       })),
       checks,
-      configFile,
       refused: true,
     };
   }
-  return { files, checks, configFile, refused: false };
+  return { files, checks, refused: false };
 }
 
 function isWithin(root, candidate) {
@@ -834,7 +804,7 @@ function staleInspectionResult({
       'A project support input changed or became unsafe after inspection. Review partialEffects before retrying.',
     projectRoot,
     files: files.map(publicFile),
-    checks: reportedChecks({ ...inspection, checks }),
+    checks: checks.map(publicCheck),
     partialEffects,
   });
 }
@@ -865,10 +835,10 @@ export async function executeSetup({
       mode,
       outcome: 'refused',
       code: inspection.code,
-      message: withConfigFileNote(inspection.message, inspection),
+      message: inspection.message,
       projectRoot: canonicalRoot,
       files: inspection.files.map(publicFile),
-      checks: reportedChecks(inspection),
+      checks: inspection.checks.map(publicCheck),
     });
   }
 
@@ -878,13 +848,10 @@ export async function executeSetup({
       mode,
       outcome: 'success',
       code: 'already-configured',
-      message: withConfigFileNote(
-        'All required EDOT Android Gradle wiring is already present.',
-        inspection,
-      ),
+      message: 'All required EDOT Android Gradle wiring is already present.',
       projectRoot: canonicalRoot,
       files: inspection.files.map(publicFile),
-      checks: reportedChecks(inspection),
+      checks: inspection.checks.map(publicCheck),
     });
   }
 
@@ -893,13 +860,10 @@ export async function executeSetup({
       mode,
       outcome: 'refused',
       code: 'setup-required',
-      message: withConfigFileNote(
-        'Required EDOT Android Gradle wiring is missing.',
-        inspection,
-      ),
+      message: 'Required EDOT Android Gradle wiring is missing.',
       projectRoot: canonicalRoot,
       files: inspection.files.map(publicFile),
-      checks: reportedChecks(inspection),
+      checks: inspection.checks.map(publicCheck),
     });
   }
   if (mode === 'dry-run') {
@@ -907,13 +871,10 @@ export async function executeSetup({
       mode,
       outcome: 'success',
       code: 'changes-planned',
-      message: withConfigFileNote(
-        'The listed EDOT Android Gradle edits would be applied.',
-        inspection,
-      ),
+      message: 'The listed EDOT Android Gradle edits would be applied.',
       projectRoot: canonicalRoot,
       files: inspection.files.map(publicFile),
-      checks: reportedChecks(inspection),
+      checks: inspection.checks.map(publicCheck),
     });
   }
   if (mode !== 'apply') {
@@ -924,7 +885,7 @@ export async function executeSetup({
       message: `Unsupported setup mode: ${mode}`,
       projectRoot: canonicalRoot,
       files: inspection.files.map(publicFile),
-      checks: reportedChecks(inspection),
+      checks: inspection.checks.map(publicCheck),
     });
   }
 
@@ -1023,7 +984,7 @@ export async function executeSetup({
           'Setup stopped after an unexpected write failure. Review partialEffects before retrying.',
         projectRoot: canonicalRoot,
         files: files.map(publicFile),
-        checks: reportedChecks(inspection),
+        checks: inspection.checks.map(publicCheck),
         partialEffects,
       });
     }
@@ -1033,13 +994,10 @@ export async function executeSetup({
     mode,
     outcome: 'success',
     code: 'changes-applied',
-    message: withConfigFileNote(
-      'Required EDOT Android Gradle wiring was applied.',
-      inspection,
-    ),
+    message: 'Required EDOT Android Gradle wiring was applied.',
     projectRoot: canonicalRoot,
     files: files.map(publicFile),
-    checks: reportedChecks(inspection),
+    checks: inspection.checks.map(publicCheck),
     partialEffects,
   });
 }

@@ -4,42 +4,24 @@
   "description": "elastic-otel-config.json at the React Native project root. The native bridge validates the file at startup.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["exportUrl", "serviceName"],
+  "required": ["exportUrl", "resourceAttributes"],
   "properties": {
     "$schema": {
       "description": "Schema reference for editor support. The bridge ignores it.",
-      "type": "string",
-      "minLength": 1
+      "type": "string"
     },
     "exportUrl": {
       "description": "OTLP base URL with an http or https scheme, without a query, fragment, or /v1/<signal> suffix.",
-      "type": "string",
-      "minLength": 1
+      "$ref": "#/$defs/nonBlankString"
     },
     "apiKey": {
       "description": "API key sent with every export request. Omit it when the endpoint needs no authentication.",
-      "type": "string",
-      "minLength": 1
+      "$ref": "#/$defs/nonBlankString"
     },
     "exportProtocol": {
       "description": "OTLP transport.",
       "enum": ["http", "grpc"],
       "default": "http"
-    },
-    "serviceName": {
-      "description": "The service.name resource attribute.",
-      "type": "string",
-      "minLength": 1
-    },
-    "serviceVersion": {
-      "description": "The service.version resource attribute. Defaults to the application version.",
-      "type": "string",
-      "minLength": 1
-    },
-    "deploymentEnvironmentName": {
-      "description": "The deployment.environment.name resource attribute.",
-      "type": "string",
-      "minLength": 1
     },
     "sessionSampleRate": {
       "description": "Fraction of sessions to record.",
@@ -48,23 +30,21 @@
       "maximum": 1
     },
     "resourceAttributes": {
-      "description": "Additional resource attributes. service.name, service.version, and deployment.environment.name are set through their dedicated keys.",
+      "description": "Resource attributes. service.name is required; service.version defaults to the application version.",
       "type": "object",
+      "required": ["service.name"],
       "propertyNames": {
-        "minLength": 1,
-        "not": {
-          "enum": [
-            "service.name",
-            "service.version",
-            "deployment.environment.name"
-          ]
-        }
+        "pattern": "\\S"
       },
       "additionalProperties": {
-        "type": "string",
-        "minLength": 1
-      },
-      "default": {}
+        "$ref": "#/$defs/nonBlankString"
+      }
+    }
+  },
+  "$defs": {
+    "nonBlankString": {
+      "type": "string",
+      "pattern": "\\S"
     }
   }
 }

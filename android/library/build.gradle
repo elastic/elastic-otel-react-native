@@ -37,6 +37,5 @@ dependencies {
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("io.opentelemetry:opentelemetry-sdk-testing:1.51.0")
-    // Android provides org.json at runtime; local unit tests need a real implementation.
-    testImplementation("org.json:json:20240303")
+    testImplementation("org.robolectric:robolectric:4.17")
 }

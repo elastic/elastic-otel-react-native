@@ -1,6 +1,8 @@
 {
   "$schema": "./node_modules/@elastic/otel-react-native/elastic-otel-config.schema.json",
   "exportUrl": "http://localhost:4318",
-  "serviceName": "edot-react-native-fixture",
-  "deploymentEnvironmentName": "local"
+  "resourceAttributes": {
+    "service.name": "edot-react-native-fixture",
+    "deployment.environment.name": "local"
+  }
 }

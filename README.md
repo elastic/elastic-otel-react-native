@@ -49,7 +49,9 @@ configuration Gradle script copies it into the app assets at build time:
   "$schema": "./node_modules/@elastic/otel-react-native/elastic-otel-config.schema.json",
   "exportUrl": "https://your-otlp-endpoint.example",
   "apiKey": "your-api-key",
-  "serviceName": "your-service"
+  "resourceAttributes": {
+    "service.name": "your-service"
+  }
 }
 ```
 

@@ -274,13 +274,8 @@ async function verifySupportedFlow() {
   );
   assert.deepEqual(
     dryRun.result.checks.map((check) => check.status),
-    ['verified', 'verified', 'found'],
+    ['verified', 'verified'],
   );
-  assert.deepEqual(dryRun.result.checks.at(-1), {
-    name: 'config-file',
-    path: CONFIG_FILE,
-    status: 'found',
-  });
   assert.deepEqual(dryRun.result.files[0].edit.insertedLines, [
     'plugins {',
     ...PLUGINS.map(
@@ -424,33 +419,6 @@ async function verifyConfigScriptOnlyHost() {
   assert.equal(applyAgain.exitCode, 0);
   assert.equal(applyAgain.result.code, 'already-configured');
   assert.deepEqual(await snapshot(project), after);
-}
-
-async function verifyConfigFileCheckIsInformational() {
-  const project = join(WORK, 'config-file-check');
-  await copyFixture(project);
-  const configFileCheck = (setupResult) =>
-    setupResult.checks.find((check) => check.name === 'config-file');
-
-  const found = runCli(project, ['--check']);
-  await rm(join(project, CONFIG_FILE));
-  const missing = runCli(project, ['--check']);
-  assert.equal(configFileCheck(found.result).status, 'found');
-  assert.equal(configFileCheck(missing.result).status, 'missing');
-  assert.equal(missing.exitCode, found.exitCode);
-  assert.equal(missing.result.outcome, found.result.outcome);
-  assert.equal(missing.result.code, found.result.code);
-  assert.ok(!found.result.message.includes(CONFIG_FILE));
-  assert.ok(missing.result.message.includes(CONFIG_FILE));
-
-  const apply = runCli(project);
-  assert.equal(apply.exitCode, 0);
-  assert.equal(apply.result.code, 'changes-applied');
-  assert.equal(configFileCheck(apply.result).status, 'missing');
-  const configured = runCli(project, ['--check']);
-  assert.equal(configured.exitCode, 0);
-  assert.equal(configured.result.code, 'already-configured');
-  assert.equal(configFileCheck(configured.result).status, 'missing');
 }
 
 async function verifyRefusal(name, mutate, expectedCode) {
@@ -736,7 +704,6 @@ await verifyRefusal(
   'unsupported-project',
 );
 await verifyConfigScriptOnlyHost();
-await verifyConfigFileCheckIsInformational();
 await verifyOlderHostAccepted();
 await verifyRefusal(
   'comments-only-settings',
