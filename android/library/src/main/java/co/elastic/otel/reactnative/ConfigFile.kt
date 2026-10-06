@@ -11,7 +11,7 @@ internal const val CONFIG_FILE_NAME = "elastic-otel-config.json"
 
 // Reads elastic-otel-config.json into a BootstrapConfiguration. The file must be
 // one strict JSON object: comments, single quotes, unquoted names, and trailing
-// content are rejected. A repeated key keeps its last value. Beyond syntax, this
+// content are rejected. A repeated key uses one of its values. Beyond syntax, this
 // reader checks only the document shape: known keys and JSON types.
 // BootstrapValidator owns every value rule.
 internal object ConfigFileReader {

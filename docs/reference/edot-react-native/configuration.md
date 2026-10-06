@@ -87,16 +87,13 @@ build time, the error appears on the first run of the build that contains it.
 When the file is missing from the iOS app bundle, the message is:
 
 ```text
-elastic-otel-config.json was not found in the app bundle. Create it at the React Native project root and run setup-ios to add it to the app target.
+elastic-otel-config.json was not found in the app bundle. Create it at the React Native project root, run setup-ios, and check that the file is in the app target's Copy Bundle Resources build phase.
 ```
 
 ### iOS resource attribute characters
 
-EDOT iOS receives resource attributes through the `OTEL_RESOURCE_ATTRIBUTES`
-environment variable. Its parser separates entries on commas and keys from
-values on equals signs, trims whitespace from keys, and trims `^`, `"`, `|`,
-and `$` from both ends of values. So that no attribute is dropped or changed,
-iOS initialization rejects, with a message that starts with `On iOS`:
+On iOS, initialization rejects these resource attributes, with a message
+that starts with `On iOS`:
 
 - a key or value that contains `,` or `=`;
 - a key that starts or ends with whitespace; and
@@ -226,20 +223,9 @@ On both platforms, the `service.name` resource attribute is required, and no
 resource attribute key or value may be blank. Use a stable name that
 identifies the mobile application as the telemetry-producing service.
 
-On Android, when `service.version` is absent, EDOT Android uses the application
-version. The bridge passes `service.name`, `service.version`, and
-`deployment.environment.name` to EDOT Android as its service identity. The
-other entries add to the resource attributes EDOT Android sets, such as the
-device and operating system attributes.
-
-On iOS, the bridge passes every resource attribute to EDOT iOS through
-`OTEL_RESOURCE_ATTRIBUTES` while EDOT iOS starts, then restores the variable.
-A configured key replaces an entry with the same key that the variable already
-holds; other entries are kept. EDOT iOS reads `service.name`,
-`service.version`, and `deployment.environment.name` from the resulting
-resource. See
-[iOS resource attribute characters](#ios-resource-attribute-characters) for
-the characters EDOT iOS cannot carry.
+When `service.version` is absent, the application version is used. On iOS,
+some characters are not supported; see
+[iOS resource attribute characters](#ios-resource-attribute-characters).
 
 ## Initialization and errors
 

@@ -128,6 +128,16 @@ class ConfigFileTest {
     }
 
     @Test
+    fun repeatedKeysAreAccepted() {
+        val configuration = ConfigFileReader.parse(
+            """{ "exportUrl": "https://a.test", "exportUrl": "https://b.test", "resourceAttributes": { "service.name": "fixture", "service.name": "other" } }""",
+        )
+
+        assertTrue(configuration.exportUrl in setOf("https://a.test", "https://b.test"))
+        assertTrue(configuration.resourceAttributes["service.name"] in setOf("fixture", "other"))
+    }
+
+    @Test
     fun schemaReferenceIsIgnored() {
         assertEquals(
             BootstrapConfiguration("https://example.test", resourceAttributes = IDENTITY),

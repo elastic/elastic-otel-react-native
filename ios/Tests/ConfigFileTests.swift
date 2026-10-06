@@ -175,7 +175,7 @@ final class ConfigFileTests: XCTestCase {
     ) {
       XCTAssertEqual(
         ($0 as? BootstrapException)?.message,
-        "elastic-otel-config.json was not found in the app bundle. Create it at the React Native project root and run setup-ios to add it to the app target."
+        "elastic-otel-config.json was not found in the app bundle. Create it at the React Native project root, run setup-ios, and check that the file is in the app target's Copy Bundle Resources build phase."
       )
     }
     XCTAssertEqual(requested, ["elastic-otel-config.json"])
