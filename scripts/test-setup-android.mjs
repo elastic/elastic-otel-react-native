@@ -217,8 +217,14 @@ async function verifySupportedFlow() {
   assert.ok(
     installedBinMetadata.isFile() || installedBinMetadata.isSymbolicLink(),
   );
+  // npm run fixture:ios:build builds this project with the reference that
+  // setup-ios adds.
   const iosRun = runCli(EXTERNAL_FIXTURE, installedBin, 'setup-ios');
   assert.equal(iosRun.exitCode, 0, iosRun.output);
+  assert.match(
+    iosRun.output,
+    /Updated ios\/EDOTReactNativeFixture\.xcodeproj\/project\.pbxproj\n/,
+  );
 
   // Fresh project: both files gain the lines, and no EDOT version.
   const original = await snapshot(EXTERNAL_FIXTURE);

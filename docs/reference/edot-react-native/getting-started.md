@@ -121,12 +121,24 @@ npx elastic-otel-react-native setup-ios
 ```
 
 The command checks that the project uses the stock React Native Podfile
-structure and one Xcode project. It makes no host changes. It never
-writes `AppDelegate`, credentials, endpoints, bundle identifiers, signing
-settings, or Xcode project content. It refuses custom Podfile layouts and
-multiple Xcode projects.
+structure and one Xcode project with one application target. It then adds
+`elastic-otel-config.json` to the app target in
+`ios/<App>.xcodeproj/project.pbxproj`. The entry references the file at the
+project root, path `../elastic-otel-config.json`, in the target's Copy Bundle
+Resources build phase, so each build copies the current file into the app
+bundle; see [Configuration file](configuration.md#configuration-file).
 
-EDOT iOS needs two manual steps:
+If the project already references that path, the command changes nothing, so
+running it again is safe. If the layout checks fail, the Xcode project cannot
+be parsed, or the project does not have exactly one application target, it
+changes no file, prints the manual step, and exits with an error; see
+[Manual host setup fallback](#manual-host-setup-fallback). When it finishes,
+review the change with `git diff`.
+
+The command never edits `AppDelegate`, the Podfile, credentials, endpoints,
+bundle identifiers, signing settings, or other Xcode project content.
+
+EDOT iOS needs two more manual steps:
 
 - Set the Podfile platform and every application deployment target in Xcode
   to iOS 16 or later. EDOT iOS declares iOS 16. Below that, Xcode stops
@@ -185,26 +197,20 @@ apply plugin: "co.elastic.otel.android.instrumentation.crash"
 apply from: "../../node_modules/@elastic/otel-react-native/android/elastic-otel-config.gradle"
 ```
 
-For iOS, follow the two manual steps in [Set up iOS](#set-up-ios). Do not add
-EDOT iOS as a sibling path or edit its repository to add a podspec.
+For iOS, add `elastic-otel-config.json` from the project root to the app
+target in Xcode as a reference, without copying it into the `ios` directory.
+Check that the file is listed in the target's Copy Bundle Resources build
+phase. Then follow the two manual steps in [Set up iOS](#set-up-ios). Do not
+add EDOT iOS as a sibling path or edit its repository to add a podspec.
 
 ## Bootstrap before React Native
 
-For Android, create `elastic-otel-config.json` at the project root:
+Create `elastic-otel-config.json` at the project root, next to
+`package.json`. One file configures both platforms;
+[Configuration file](configuration.md#configuration-file) shows an example
+and lists every key.
 
-```json
-{
-  "$schema": "./node_modules/@elastic/otel-react-native/elastic-otel-config.schema.json",
-  "exportUrl": "https://your-otlp-endpoint.example",
-  "apiKey": "your-api-key",
-  "resourceAttributes": {
-    "service.name": "your-service"
-  }
-}
-```
-
-[Configuration](configuration.md#configuration-file) lists every key. Then, in
-`MainApplication.kt`, initialize after `super.onCreate()` and before
+In `MainApplication.kt`, initialize after `super.onCreate()` and before
 `loadReactNative(this)`:
 
 ```kotlin
@@ -217,26 +223,25 @@ override fun onCreate() {
 }
 ```
 
-In iOS `AppDelegate.swift`, import the autolinked module and initialize before
-creating or starting the React Native factory:
+In iOS `AppDelegate.swift`, import the autolinked module and initialize at the
+start of `application(_:didFinishLaunchingWithOptions:)`, before creating or
+starting the React Native factory:
 
 ```swift
 import ElasticOtelReactNative
 
 do {
-  try ElasticOtelReactNative.initialize(
-    BootstrapConfiguration(
-      exportUrl: "https://your-otlp-endpoint.example",
-      authentication: .apiKey("your-api-key"),
-      transport: .http,
-      sessionSampleRate: 1.0,
-      serviceName: "your-service"
-    )
-  )
+  try ElasticOtelReactNative.initialize()
 } catch {
   fatalError("EDOT iOS bootstrap failed: \(error)")
 }
 ```
+
+Both calls read `elastic-otel-config.json` and throw `BootstrapException` when
+it is missing or invalid; see
+[Configuration errors](configuration.md#configuration-errors). To build the
+configuration in code instead, see
+[Configure in code](configuration.md#configure-in-code).
 
 The setup commands deliberately do not write bootstrap code or the
 configuration file because configuration and credentials belong to the
@@ -253,7 +258,8 @@ or the EDOT iOS
 
 1. Remove both native bootstrap calls and imports.
 2. Remove the EDOT Android plugin applications and declarations, the
-   configuration Gradle script line, and `elastic-otel-config.json`.
+   configuration Gradle script line, the `elastic-otel-config.json` reference
+   in the Xcode app target, and `elastic-otel-config.json`.
 3. Remove the iOS Podfile line that forces dynamic frameworks only if no other
    dependency needs it; choose any new deployment target based on the remaining
    application dependencies.

@@ -5,9 +5,10 @@ description: Configure native-first EDOT Android and EDOT iOS initialization for
 
 # Configure EDOT React Native
 
-On Android, the bridge reads its configuration from one file,
-`elastic-otel-config.json`, at the React Native project root. On iOS, supply
-the configuration natively through the Swift `BootstrapConfiguration`.
+On Android and iOS, the bridge reads its configuration from one file,
+`elastic-otel-config.json`, at the React Native project root. A host that
+builds its configuration in code can pass a native `BootstrapConfiguration`
+instead; see [Configure in code](#configure-in-code).
 
 ## Configuration file
 
@@ -47,31 +48,58 @@ Use OpenTelemetry semantic convention keys in `resourceAttributes`.
 `service.name` is required. `service.version` defaults to the application
 version. Set `deployment.environment.name` and other attributes, such as
 `service.namespace`, as needed. See [Service identity](#service-identity).
+On iOS, some characters are not supported in resource attributes; see
+[iOS resource attribute characters](#ios-resource-attribute-characters).
 
 The file accepts only the keys in this table. An unknown key, such as a
 misspelled `apikey`, is rejected rather than ignored, so a typo cannot silently
 drop a setting. String values must not be blank, except `$schema`, which only
-needs to be a string.
+needs to be a string. Write each key once: the bridge does not report a
+repeated key and uses only one of its values.
 
 ### How the file reaches the app
 
-`setup-android` applies the package's `elastic-otel-config.gradle` script in
-`android/app/build.gradle`. At build time the script copies
+On Android, `setup-android` applies the package's `elastic-otel-config.gradle`
+script in `android/app/build.gradle`. At build time the script copies
 `elastic-otel-config.json` into the application assets. If the file does not
-exist, the build logs a warning with the expected path and continues.
-
-In `MainApplication.onCreate`, `ElasticOtelReactNative.initialize(this)` reads
+exist, the build logs a warning with the expected path and continues. In
+`MainApplication.onCreate`, `ElasticOtelReactNative.initialize(this)` reads
 the file from the assets and starts EDOT Android before React Native loads.
+
+On iOS, `setup-ios` adds `elastic-otel-config.json` to the app target in the
+Xcode project. The entry references the file at the project root, path
+`../elastic-otel-config.json`, in the target's Copy Bundle Resources build
+phase, so each build copies the current file into the app bundle. At the start
+of `application(_:didFinishLaunchingWithOptions:)`,
+`try ElasticOtelReactNative.initialize()` reads the file from the app bundle
+and starts EDOT iOS before React Native starts.
+
 Rebuild the app after you change the file.
 
 ### Configuration errors
 
-A missing file, invalid JSON, an unknown key, a duplicate key, a value of the
-wrong type, or an invalid value throws `BootstrapException` from
-`ElasticOtelReactNative.initialize(this)`. The message names the file and the
-offending key or value. Telemetry is not initialized. Because the file is
-bundled at build time, the error appears on the first run of the build that
-contains it.
+A missing file, invalid JSON, an unknown key, a value of the wrong type, or an
+invalid value throws `BootstrapException` from `initialize(this)` on Android
+and from `initialize()` on iOS. The message names the file and the offending
+key or value. Telemetry is not initialized. Because the file is bundled at
+build time, the error appears on the first run of the build that contains it.
+
+When the file is missing from the iOS app bundle, the message is:
+
+```text
+elastic-otel-config.json was not found in the app bundle. Create it at the React Native project root, run setup-ios, and check that the file is in the app target's Copy Bundle Resources build phase.
+```
+
+### iOS resource attribute characters
+
+On iOS, initialization rejects these resource attributes, with a message
+that starts with `On iOS`:
+
+- a key or value that contains `,` or `=`;
+- a key that starts or ends with whitespace; and
+- a value that starts or ends with `^`, `"`, `|`, or `$`.
+
+The same rule applies to a `BootstrapConfiguration` passed in code.
 
 ### API keys in the app
 
@@ -83,9 +111,10 @@ repositories.
 
 ## Configure in code
 
-On Android, a host that builds its configuration in code can call the
+A host that builds its configuration in code can call the
 `BootstrapConfiguration` overload instead of reading the file. This form also
-accepts a secret token through `AuthenticationConfiguration.secretToken`:
+accepts a secret token through `AuthenticationConfiguration.secretToken`. On
+Android:
 
 ```kotlin
 ElasticOtelReactNative.initialize(
@@ -105,22 +134,32 @@ ElasticOtelReactNative.initialize(
 )
 ```
 
-Use one form. EDOT Android initializes once, so calling both
-`initialize(this)` and `initialize(this, configuration)` throws the
-duplicate-initialization `BootstrapException`. The file and the code are never
-merged.
-
 On iOS:
 
 ```swift
-BootstrapConfiguration(
-  exportUrl: "https://your-otlp-endpoint.example",
-  authentication: .apiKey("your-api-key"),
-  transport: .http,
-  sessionSampleRate: 1.0,
-  serviceName: "your-service"
-)
+do {
+  try ElasticOtelReactNative.initialize(
+    BootstrapConfiguration(
+      exportUrl: "https://your-otlp-endpoint.example",
+      authentication: .apiKey("your-api-key"),
+      transport: .http,
+      sessionSampleRate: 1.0,
+      resourceAttributes: [
+        "service.name": "your-service",
+        "service.version": "1.4.0",
+        "deployment.environment.name": "production",
+        "service.namespace": "shop",
+      ]
+    )
+  )
+} catch {
+  fatalError("EDOT iOS bootstrap failed: \(error)")
+}
 ```
+
+Use one form. Each native SDK initializes once, so calling both the file form
+and the `BootstrapConfiguration` form throws the duplicate-initialization
+`BootstrapException`. The file and the code are never merged.
 
 ## OTLP base URL
 
@@ -180,28 +219,22 @@ decision.
 
 ## Service identity
 
-On Android, the `service.name` resource attribute is required and must not be
-blank. Use a stable name that identifies the mobile application as the
-telemetry-producing service. When `service.version` is absent, EDOT Android
-uses the application version. The bridge passes `service.name`,
-`service.version`, and `deployment.environment.name` to EDOT Android as its
-service identity. The other entries add to the resource attributes EDOT Android
-sets, such as the device and operating system attributes.
+On both platforms, the `service.name` resource attribute is required, and no
+resource attribute key or value may be blank. Use a stable name that
+identifies the mobile application as the telemetry-producing service.
 
-EDOT iOS exposes service-name override through
-`OTEL_RESOURCE_ATTRIBUTES`. Its public parser separates entries on commas and
-key/value pairs on equals signs, so the iOS bridge rejects service names
-containing `,` or `=` rather than exporting a different value. Other existing
-resource attributes are preserved. The iOS `BootstrapConfiguration` does not
-set the service version, deployment environment, or other resource
-attributes.
+When `service.version` is absent, the application version is used. On iOS,
+some characters are not supported; see
+[iOS resource attribute characters](#ios-resource-attribute-characters).
 
 ## Initialization and errors
 
 Call Android `ElasticOtelReactNative.initialize` once from
-`Application.onCreate`, with or without a `BootstrapConfiguration`. Call the Swift equivalent once from `AppDelegate`
-before React Native starts. Invalid configuration and duplicate initialization
-throw `BootstrapException`. A failed validation or native agent construction
+`Application.onCreate`, with or without a `BootstrapConfiguration`. Call the
+Swift equivalent once from `AppDelegate` before React Native starts. Invalid
+configuration and duplicate initialization throw `BootstrapException`. A
+second call reports the duplicate initialization before it reads or validates
+any configuration. A failed validation or native agent construction
 does not retain a partially initialized bridge agent.
 
 EDOT iOS registers its tracer, logger, and meter providers on

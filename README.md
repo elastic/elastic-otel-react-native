@@ -34,26 +34,18 @@ the package's configuration Gradle script:
 apply from: "../../node_modules/@elastic/otel-react-native/android/elastic-otel-config.gradle"
 ```
 
-iOS setup checks the project layout and makes no host changes; set the
+iOS setup adds `elastic-otel-config.json` from the project root to the app
+target as a resource reference, so Xcode copies it into the app bundle; set the
 iOS deployment target to 16 and install pods with `USE_FRAMEWORKS=dynamic`.
 Neither command writes credentials, endpoints, the configuration file, or
 native bootstrap code. See
 [Get started](docs/reference/edot-react-native/getting-started.md) for the exact
-Gradle edits, CocoaPods, manual fallback, and selected-release limitations.
+Gradle and Xcode project edits, CocoaPods, manual fallback, and
+selected-release limitations.
 
-For Android, create `elastic-otel-config.json` at the project root. The
-configuration Gradle script copies it into the app assets at build time:
-
-```json
-{
-  "$schema": "./node_modules/@elastic/otel-react-native/elastic-otel-config.schema.json",
-  "exportUrl": "https://your-otlp-endpoint.example",
-  "apiKey": "your-api-key",
-  "resourceAttributes": {
-    "service.name": "your-service"
-  }
-}
-```
+Create one `elastic-otel-config.json` at the project root for both platforms;
+[Configuration file](docs/reference/edot-react-native/configuration.md#configuration-file)
+shows an example and lists every key.
 
 Then bootstrap Android once in `MainApplication.onCreate`, before
 `loadReactNative(this)`:
@@ -62,26 +54,19 @@ Then bootstrap Android once in `MainApplication.onCreate`, before
 ElasticOtelReactNative.initialize(this)
 ```
 
-See [Configuration](docs/reference/edot-react-native/configuration.md) for every
-key and for configuring in code.
-
-Bootstrap iOS once in `AppDelegate`, before starting React Native:
+Bootstrap iOS once at the start of `application(_:didFinishLaunchingWithOptions:)`
+in `AppDelegate`, before starting React Native:
 
 ```swift
 do {
-  try ElasticOtelReactNative.initialize(
-    BootstrapConfiguration(
-      exportUrl: "https://your-otlp-endpoint.example",
-      authentication: .apiKey("your-api-key"),
-      transport: .http,
-      sessionSampleRate: 1.0,
-      serviceName: "your-service"
-    )
-  )
+  try ElasticOtelReactNative.initialize()
 } catch {
   fatalError("EDOT iOS bootstrap failed: \(error)")
 }
 ```
+
+See [Configuration](docs/reference/edot-react-native/configuration.md) for the
+iOS resource attribute character rules and for configuring in code.
 
 Use the same promise bridge on both platforms. A standalone span is a root span:
 

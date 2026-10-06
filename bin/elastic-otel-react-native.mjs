@@ -13,6 +13,8 @@ import {
 import { basename, dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import xcode from 'xcode';
+
 const USAGE = 'Usage: elastic-otel-react-native <setup-android|setup-ios>';
 const MANUAL_SETUP_DOCS = fileURLToPath(
   new URL(
@@ -111,6 +113,12 @@ function planFile(content, edits) {
   return { content: lines.join(newline), additions };
 }
 
+function printManualSetupReference() {
+  console.error(
+    `\nSee "Manual host setup fallback" in ${relative(process.cwd(), MANUAL_SETUP_DOCS)}.`,
+  );
+}
+
 function printManualLines(plans) {
   console.error('Add these lines manually:');
   for (const { path, additions } of plans) {
@@ -125,9 +133,7 @@ function printManualLines(plans) {
       }
     }
   }
-  console.error(
-    `\nSee "Manual host setup fallback" in ${relative(process.cwd(), MANUAL_SETUP_DOCS)}.`,
-  );
+  printManualSetupReference();
 }
 
 // Writes a temporary file next to the real target and renames it over the
@@ -253,8 +259,17 @@ const PODFILE_PATTERNS = [
   /^\s*react_native_post_install\(\s*$/m,
 ];
 
+// The Xcode project path of the configuration file at the React Native
+// project root, relative to the ios directory that holds the project.
+export const CONFIG_FILE_REFERENCE_PATH = '../elastic-otel-config.json';
+const IOS_HOST_STEPS =
+  'Set the deployment target to iOS 16 or later and install pods with USE_FRAMEWORKS=dynamic.';
+
+// Returns the diagnostics and, when there are none, the path of the single
+// Xcode project file.
 async function iosDiagnostics() {
   const diagnostics = [];
+  let projectPath = null;
 
   try {
     const packageJson = JSON.parse(await readFile('package.json', 'utf8'));
@@ -270,7 +285,8 @@ async function iosDiagnostics() {
       (entry) => entry.isDirectory() && entry.name.endsWith('.xcodeproj'),
     );
     if (projects.length === 1) {
-      await readFile(join('ios', projects[0].name, 'project.pbxproj'));
+      projectPath = join('ios', projects[0].name, 'project.pbxproj');
+      await readFile(projectPath);
     } else {
       diagnostics.push(
         `Expected exactly one iOS Xcode project, found ${projects.length}.`,
@@ -293,26 +309,106 @@ async function iosDiagnostics() {
     diagnostics.push(`Cannot read ios/Podfile: ${error.message}`);
   }
 
-  return diagnostics;
+  return { diagnostics, projectPath };
 }
 
-// setup-ios checks the project layout and makes no host change. EDOT iOS needs
-// only the manual steps in the getting-started guide (deployment target 16 and
-// dynamic frameworks).
+const unquote = (value) => String(value).replace(/^"(.*)"$/, '$1');
+
+// Adds the configuration file as a resource reference to the single
+// application target, so Xcode copies it from the project root into the app
+// bundle. Returns the serialized project, null when the reference already
+// exists, or a diagnostic.
+function planConfigFileReference(projectPath) {
+  const project = xcode.project(projectPath);
+  try {
+    project.parseSync();
+  } catch (error) {
+    return { diagnostic: `Cannot parse ${projectPath}: ${error.message}` };
+  }
+  const references = Object.values(project.pbxFileReferenceSection());
+  if (
+    references.some(
+      (reference) =>
+        typeof reference === 'object' &&
+        unquote(reference.path) === CONFIG_FILE_REFERENCE_PATH,
+    )
+  ) {
+    return { content: null };
+  }
+  const applications = Object.entries(project.pbxNativeTargetSection()).filter(
+    ([, target]) =>
+      typeof target === 'object' &&
+      unquote(target.productType) === 'com.apple.product-type.application',
+  );
+  if (applications.length !== 1) {
+    return {
+      diagnostic: `Expected exactly one application target in ${projectPath}, found ${applications.length}.`,
+    };
+  }
+
+  // addResourceFile fails on projects without a Resources group, so add the
+  // reference to the main group and the build phase in separate steps.
+  const file = project.addFile(
+    CONFIG_FILE_REFERENCE_PATH,
+    project.getFirstProject().firstProject.mainGroup,
+    { lastKnownFileType: 'text.json' },
+  );
+  file.uuid = project.generateUuid();
+  file.target = applications[0][0];
+  project.addToPbxBuildFileSection(file);
+  project.addToPbxResourcesBuildPhase(file);
+  // The library writes these unset fields as the literal text undefined.
+  const reference = project.pbxFileReferenceSection()[file.fileRef];
+  delete reference.fileEncoding;
+  delete reference.explicitFileType;
+  return { content: project.writeSync() };
+}
+
+function printManualConfigFileStep() {
+  console.error(
+    'Add elastic-otel-config.json manually: in Xcode, add the file at the React Native project root to the app target without copying it.',
+  );
+  printManualSetupReference();
+}
+
+// setup-ios checks the project layout and adds elastic-otel-config.json to the
+// app target as a resource reference. The other EDOT iOS host steps are in the
+// getting-started guide (deployment target 16 and dynamic frameworks).
 async function setupIos() {
-  const diagnostics = await iosDiagnostics();
+  const { diagnostics, projectPath } = await iosDiagnostics();
   if (diagnostics.length > 0) {
+    console.error('No file was changed.');
     console.error(
       'The iOS project does not match the supported bare React Native template layout.',
     );
     for (const diagnostic of diagnostics) {
       console.error(`  ${diagnostic}`);
     }
+    printManualConfigFileStep();
     return 1;
   }
-  console.log(
-    'The iOS project needs no EDOT iOS host-project changes. Set the deployment target to iOS 16 or later and install pods with USE_FRAMEWORKS=dynamic.',
-  );
+
+  const { content, diagnostic } = planConfigFileReference(projectPath);
+  if (diagnostic) {
+    console.error('No file was changed.');
+    console.error(diagnostic);
+    printManualConfigFileStep();
+    return 1;
+  }
+  if (content === null) {
+    console.log('EDOT iOS is already configured.');
+  } else {
+    try {
+      await atomicWrite(projectPath, content);
+    } catch (error) {
+      console.error('No file was updated.');
+      console.error(`Failed to update ${projectPath}: ${error.message}`);
+      return 1;
+    }
+    console.log(`Updated ${projectPath}`);
+    console.log('Review the changes with git diff.');
+  }
+  console.log(IOS_HOST_STEPS);
   return 0;
 }
 

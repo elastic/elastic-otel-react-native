@@ -55,6 +55,7 @@ const required = [
   'docs/reference/edot-react-native/getting-started.md',
   'docs/release-notes/known-issues.md',
   'ios/Sources/Bootstrap.swift',
+  'ios/Sources/ConfigFile.swift',
   'ios/Sources/ElasticOtelReactNativeModule.m',
   'ios/Sources/ElasticOtelReactNativeModule.swift',
   'lib/index.d.ts',

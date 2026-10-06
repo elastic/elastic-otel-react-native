@@ -128,19 +128,13 @@ class ConfigFileTest {
     }
 
     @Test
-    fun duplicateKeysAreRejected() {
-        assertEquals(
-            "$CONFIG_FILE_NAME contains the duplicate key exportUrl.",
-            assertThrows(BootstrapException::class.java) {
-                ConfigFileReader.parse(
-                    """{ "exportUrl": "https://a.test", "exportUrl": "https://b.test", "resourceAttributes": { "service.name": "fixture" } }""",
-                )
-            }.message,
+    fun repeatedKeysAreAccepted() {
+        val configuration = ConfigFileReader.parse(
+            """{ "exportUrl": "https://a.test", "exportUrl": "https://b.test", "resourceAttributes": { "service.name": "fixture", "service.name": "other" } }""",
         )
-        assertRejected(
-            """{ "exportUrl": "https://example.test", "resourceAttributes": { "service.name": "fixture", "service.namespace": "a", "service.namespace": "b" } }""",
-            "duplicate key resourceAttributes.service.namespace",
-        )
+
+        assertTrue(configuration.exportUrl in setOf("https://a.test", "https://b.test"))
+        assertTrue(configuration.resourceAttributes["service.name"] in setOf("fixture", "other"))
     }
 
     @Test
