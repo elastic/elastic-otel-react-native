@@ -1,5 +1,11 @@
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, realpathSync, rmSync } from 'node:fs';
+import {
+  mkdirSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -7,6 +13,11 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const EXTERNAL_FIXTURE = join(ROOT, 'build', 'external-fixture');
 const IOS = join(EXTERNAL_FIXTURE, 'ios');
 const DERIVED_DATA = join(ROOT, 'build', 'ios-fixture-derived-data');
+const CONFIG_FILE = join(EXTERNAL_FIXTURE, 'elastic-otel-config.json');
+const BUNDLED_CONFIG_FILE = join(
+  DERIVED_DATA,
+  'Build/Products/Debug-iphonesimulator/EDOTReactNativeFixture.app/elastic-otel-config.json',
+);
 const TEMPORARY = join(ROOT, 'build', 'ios-fixture-temporary');
 rmSync(DERIVED_DATA, { recursive: true, force: true });
 mkdirSync(TEMPORARY, { recursive: true });
@@ -86,22 +97,46 @@ try {
   }
 
   run('pod', ['install']);
-  run('xcodebuild', [
-    'build',
-    '-workspace',
-    'EDOTReactNativeFixture.xcworkspace',
-    '-scheme',
-    'EDOTReactNativeFixture',
-    '-configuration',
-    'Debug',
-    '-destination',
-    'generic/platform=iOS Simulator',
-    '-derivedDataPath',
-    DERIVED_DATA,
-    'CODE_SIGNING_ALLOWED=NO',
-  ]);
+  const build = () =>
+    run('xcodebuild', [
+      'build',
+      '-workspace',
+      'EDOTReactNativeFixture.xcworkspace',
+      '-scheme',
+      'EDOTReactNativeFixture',
+      '-configuration',
+      'Debug',
+      '-destination',
+      'generic/platform=iOS Simulator',
+      '-derivedDataPath',
+      DERIVED_DATA,
+      'CODE_SIGNING_ALLOWED=NO',
+    ]);
+  // setup-ios, run on this fixture by npm run setup:test, adds the root
+  // configuration file to the app target, so each build copies it into the
+  // app bundle.
+  const assertBundled = (expected) => {
+    if (readFileSync(BUNDLED_CONFIG_FILE, 'utf8') !== expected) {
+      throw new Error(
+        `The app bundle does not hold the current ${CONFIG_FILE}.`,
+      );
+    }
+  };
+  build();
+  const original = readFileSync(CONFIG_FILE, 'utf8');
+  assertBundled(original);
+  const edited = `${original}\n`;
+  writeFileSync(CONFIG_FILE, edited);
+  try {
+    build();
+    assertBundled(edited);
+  } finally {
+    writeFileSync(CONFIG_FILE, original);
+  }
 } finally {
   rmSync(tarball, { force: true });
 }
 
-console.log('External iOS fixture pod install and simulator build passed.');
+console.log(
+  'External iOS fixture pod install, simulator build, and bundled configuration file checks passed.',
+);

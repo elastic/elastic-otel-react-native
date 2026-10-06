@@ -10,10 +10,10 @@ import java.io.StringReader
 internal const val CONFIG_FILE_NAME = "elastic-otel-config.json"
 
 // Reads elastic-otel-config.json into a BootstrapConfiguration. The file must be
-// one strict JSON object: comments, single quotes, unquoted names, trailing
-// content, and duplicate keys are rejected. Beyond syntax, this reader checks
-// only the document shape: known keys and JSON types. BootstrapValidator owns
-// every value rule.
+// one strict JSON object: comments, single quotes, unquoted names, and trailing
+// content are rejected. A repeated key keeps its last value. Beyond syntax, this
+// reader checks only the document shape: known keys and JSON types.
+// BootstrapValidator owns every value rule.
 internal object ConfigFileReader {
     private const val SCHEMA_KEY = "\$schema"
     private val KNOWN_KEYS = setOf(
@@ -65,7 +65,7 @@ internal object ConfigFileReader {
                 if (first != JsonToken.BEGIN_OBJECT) {
                     throw notOneObject("found $first")
                 }
-                val document = readObject(reader, path = null)
+                val document = readObject(reader)
                 // Strict mode fails this peek when content follows the object.
                 val next = reader.peek()
                 if (next != JsonToken.END_DOCUMENT) {
@@ -82,10 +82,10 @@ internal object ConfigFileReader {
     private fun notOneObject(detail: String?) =
         BootstrapException("$CONFIG_FILE_NAME must contain one JSON object: $detail")
 
-    private fun readValue(reader: JsonReader, path: String): Any? =
+    private fun readValue(reader: JsonReader): Any? =
         when (val token = reader.peek()) {
-            JsonToken.BEGIN_OBJECT -> readObject(reader, path)
-            JsonToken.BEGIN_ARRAY -> readArray(reader, path)
+            JsonToken.BEGIN_OBJECT -> readObject(reader)
+            JsonToken.BEGIN_ARRAY -> readArray(reader)
             JsonToken.STRING -> reader.nextString()
             JsonToken.NUMBER -> reader.nextDouble()
             JsonToken.BOOLEAN -> reader.nextBoolean()
@@ -93,26 +93,21 @@ internal object ConfigFileReader {
             else -> throw IllegalStateException("Expected a value but was $token")
         }
 
-    private fun readObject(reader: JsonReader, path: String?): Map<String, Any?> {
+    private fun readObject(reader: JsonReader): Map<String, Any?> {
         val members = LinkedHashMap<String, Any?>()
         reader.beginObject()
         while (reader.hasNext()) {
-            val name = reader.nextName()
-            val memberPath = if (path == null) name else "$path.$name"
-            if (name in members) {
-                throw BootstrapException("$CONFIG_FILE_NAME contains the duplicate key $memberPath.")
-            }
-            members[name] = readValue(reader, memberPath)
+            members[reader.nextName()] = readValue(reader)
         }
         reader.endObject()
         return members
     }
 
-    private fun readArray(reader: JsonReader, path: String): List<Any?> {
+    private fun readArray(reader: JsonReader): List<Any?> {
         val elements = mutableListOf<Any?>()
         reader.beginArray()
         while (reader.hasNext()) {
-            elements += readValue(reader, path)
+            elements += readValue(reader)
         }
         reader.endArray()
         return elements

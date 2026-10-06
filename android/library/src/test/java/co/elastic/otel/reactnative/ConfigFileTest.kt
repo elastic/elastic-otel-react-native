@@ -128,22 +128,6 @@ class ConfigFileTest {
     }
 
     @Test
-    fun duplicateKeysAreRejected() {
-        assertEquals(
-            "$CONFIG_FILE_NAME contains the duplicate key exportUrl.",
-            assertThrows(BootstrapException::class.java) {
-                ConfigFileReader.parse(
-                    """{ "exportUrl": "https://a.test", "exportUrl": "https://b.test", "resourceAttributes": { "service.name": "fixture" } }""",
-                )
-            }.message,
-        )
-        assertRejected(
-            """{ "exportUrl": "https://example.test", "resourceAttributes": { "service.name": "fixture", "service.namespace": "a", "service.namespace": "b" } }""",
-            "duplicate key resourceAttributes.service.namespace",
-        )
-    }
-
-    @Test
     fun schemaReferenceIsIgnored() {
         assertEquals(
             BootstrapConfiguration("https://example.test", resourceAttributes = IDENTITY),

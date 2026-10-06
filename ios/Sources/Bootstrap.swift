@@ -18,20 +18,20 @@ public struct BootstrapConfiguration: Equatable {
   public let authentication: AuthenticationConfiguration
   public let transport: Transport
   public let sessionSampleRate: Double?
-  public let serviceName: String
+  public let resourceAttributes: [String: String]
 
   public init(
     exportUrl: String,
     authentication: AuthenticationConfiguration = .none,
     transport: Transport = .http,
     sessionSampleRate: Double? = nil,
-    serviceName: String
+    resourceAttributes: [String: String]
   ) {
     self.exportUrl = exportUrl
     self.authentication = authentication
     self.transport = transport
     self.sessionSampleRate = sessionSampleRate
-    self.serviceName = serviceName
+    self.resourceAttributes = resourceAttributes
   }
 }
 
@@ -52,10 +52,12 @@ struct ValidatedBootstrapConfiguration: Equatable {
   let authentication: AuthenticationConfiguration
   let transport: Transport
   let sessionSampleRate: Double?
-  let serviceName: String
+  let resourceAttributes: [String: String]
 }
 
 enum BootstrapValidator {
+  static let serviceNameKey = "service.name"
+
   static func validate(
     _ configuration: BootstrapConfiguration
   ) throws -> ValidatedBootstrapConfiguration {
@@ -65,17 +67,18 @@ enum BootstrapValidator {
     guard !exportUrl.isEmpty else {
       throw BootstrapException("An OTLP export URL is required.")
     }
-    guard
-      let components = URLComponents(string: exportUrl),
-      let scheme = components.scheme?.lowercased(),
-      scheme == "http" || scheme == "https",
-      let host = components.host,
-      !host.isEmpty,
-      let url = components.url
-    else {
-      throw BootstrapException(
-        "The OTLP export URL must use http or https and include a host."
-      )
+    guard let components = URLComponents(string: exportUrl) else {
+      throw BootstrapException("The OTLP export URL is invalid.")
+    }
+    let scheme = components.scheme?.lowercased()
+    guard scheme == "http" || scheme == "https" else {
+      throw BootstrapException("The OTLP export URL must use http or https.")
+    }
+    guard let host = components.host, !host.isEmpty else {
+      throw BootstrapException("The OTLP export URL must include a host.")
+    }
+    guard let url = components.url else {
+      throw BootstrapException("The OTLP export URL is invalid.")
     }
     guard components.query == nil, components.fragment == nil else {
       throw BootstrapException(
@@ -93,18 +96,6 @@ enum BootstrapValidator {
       )
     }
 
-    let serviceName = configuration.serviceName.trimmingCharacters(
-      in: .whitespacesAndNewlines
-    )
-    guard !serviceName.isEmpty else {
-      throw BootstrapException("A service name is required.")
-    }
-    guard !serviceName.contains(","), !serviceName.contains("=") else {
-      throw BootstrapException(
-        "On iOS, the service name must not contain ',' or '='."
-      )
-    }
-
     if let sampleRate = configuration.sessionSampleRate,
       !sampleRate.isFinite || !(0.0 ... 1.0).contains(sampleRate)
     {
@@ -113,17 +104,23 @@ enum BootstrapValidator {
       )
     }
 
+    let resourceAttributes = configuration.resourceAttributes
+    try validateResourceAttributes(resourceAttributes)
+    guard resourceAttributes[serviceNameKey] != nil else {
+      throw BootstrapException(
+        "The resource attribute \(serviceNameKey) is required."
+      )
+    }
+
     switch configuration.authentication {
     case .none:
       break
     case .apiKey(let value):
-      guard !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-      else {
+      guard !isBlank(value) else {
         throw BootstrapException("The API key must not be blank.")
       }
     case .secretToken(let value):
-      guard !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-      else {
+      guard !isBlank(value) else {
         throw BootstrapException("The secret token must not be blank.")
       }
     }
@@ -133,8 +130,32 @@ enum BootstrapValidator {
       authentication: configuration.authentication,
       transport: configuration.transport,
       sessionSampleRate: configuration.sessionSampleRate,
-      serviceName: serviceName
+      resourceAttributes: resourceAttributes
     )
+  }
+
+  private static func validateResourceAttributes(
+    _ attributes: [String: String]
+  ) throws {
+    for (key, value) in attributes.sorted(by: { $0.key < $1.key }) {
+      guard !isBlank(key) else {
+        throw BootstrapException("Resource attribute keys must not be blank.")
+      }
+      guard !isBlank(value) else {
+        throw BootstrapException(
+          "The resource attribute \(key) must not be blank."
+        )
+      }
+      guard ResourceEnvironment.preserves(key: key, value: value) else {
+        throw BootstrapException(
+          "On iOS, the resource attribute \(key) is not supported: keys and values must not contain ',' or '=', keys must not start or end with whitespace, and values must not start or end with '^', '\"', '|', or '$'."
+        )
+      }
+    }
+  }
+
+  private static func isBlank(_ value: String) -> Bool {
+    value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
   }
 }
 
@@ -142,8 +163,10 @@ final class AgentLifecycle<Agent> {
   private let lock = NSRecursiveLock()
   private var initializedAgent: Agent?
 
+  // Supplies the configuration only after the duplicate check, so a repeated
+  // call reports the duplicate instead of a configuration error.
   func initialize(
-    configuration: ValidatedBootstrapConfiguration,
+    configuration: () throws -> BootstrapConfiguration,
     factory: (ValidatedBootstrapConfiguration) throws -> Agent
   ) throws -> Agent {
     lock.lock()
@@ -153,7 +176,8 @@ final class AgentLifecycle<Agent> {
       throw BootstrapException("EDOT iOS has already been initialized.")
     }
 
-    let agent = try factory(configuration)
+    let validated = try BootstrapValidator.validate(configuration())
+    let agent = try factory(validated)
     initializedAgent = agent
     return agent
   }
@@ -177,11 +201,30 @@ final class AgentLifecycle<Agent> {
   }
 }
 
+// EDOT iOS 2.1.0 reads resource attributes only from OTEL_RESOURCE_ATTRIBUTES.
+// Its parser splits entries on ',' and each entry on '=', drops entries that
+// do not split into exactly a key and a value, trims whitespace from keys, and
+// trims '^', '"', '|', and '$' from both ends of values. `preserves` accepts
+// only attributes that parser reads back unchanged.
 enum ResourceEnvironment {
   static let key = AgentEnvResource.otelResourceAttributesEnv
+  private static let separators = CharacterSet(charactersIn: ",=")
+  private static let trimmedValueCharacters = CharacterSet(
+    charactersIn: "^\"|$"
+  )
 
-  static func withServiceName<T>(
-    _ serviceName: String,
+  static func preserves(key: String, value: String) -> Bool {
+    key.rangeOfCharacter(from: separators) == nil
+      && value.rangeOfCharacter(from: separators) == nil
+      && key.trimmingCharacters(in: .whitespacesAndNewlines) == key
+      && value.trimmingCharacters(in: trimmedValueCharacters) == value
+  }
+
+  // Sets every attribute in OTEL_RESOURCE_ATTRIBUTES, replacing existing
+  // entries with the same keys and keeping the others, and restores the
+  // original value after the operation.
+  static func withResourceAttributes<T>(
+    _ attributes: [String: String],
     operation: () throws -> T
   ) throws -> T {
     let original = getenv(key).map { String(cString: $0) }
@@ -189,16 +232,22 @@ enum ResourceEnvironment {
       .split(separator: ",", omittingEmptySubsequences: true)
       .map(String.init)
       .filter { entry in
-        entry.split(separator: "=", maxSplits: 1)
-          .first?
-          .trimmingCharacters(in: .whitespacesAndNewlines) != "service.name"
+        guard
+          let entryKey = entry.split(separator: "=", maxSplits: 1).first
+        else {
+          return true
+        }
+        return attributes[
+          entryKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        ] == nil
       } ?? []
-    let resourceAttributes = (existing + ["service.name=\(serviceName)"])
-      .joined(separator: ",")
+    let configured = attributes.sorted(by: { $0.key < $1.key })
+      .map { "\($0.key)=\($0.value)" }
 
-    guard setenv(key, resourceAttributes, 1) == 0 else {
+    guard setenv(key, (existing + configured).joined(separator: ","), 1) == 0
+    else {
       throw BootstrapException(
-        "Could not configure the EDOT iOS service name resource."
+        "Could not configure the EDOT iOS resource attributes."
       )
     }
     defer {
@@ -215,11 +264,25 @@ enum ResourceEnvironment {
 public enum ElasticOtelReactNative {
   private static let lifecycle = AgentLifecycle<ElasticApmAgent>()
 
+  // Reads elastic-otel-config.json, which the resource reference that
+  // setup-ios adds copies from the React Native project root into the app
+  // bundle.
+  public static func initialize() throws {
+    try initialize {
+      try ConfigFileReader.read(loadResource: ConfigFileReader.bundleResource)
+    }
+  }
+
   public static func initialize(
     _ configuration: BootstrapConfiguration
   ) throws {
-    let validated = try BootstrapValidator.validate(configuration)
-    _ = try lifecycle.initialize(configuration: validated) { validated in
+    try initialize { configuration }
+  }
+
+  private static func initialize(
+    configuration: () throws -> BootstrapConfiguration
+  ) throws {
+    _ = try lifecycle.initialize(configuration: configuration) { validated in
       guard ElasticApmAgent.shared() == nil else {
         throw BootstrapException(
           "EDOT iOS was initialized outside @elastic/otel-react-native."
@@ -243,7 +306,9 @@ public enum ElasticOtelReactNative {
         builder.withSessionSampleRate(sessionSampleRate)
       }
 
-      try ResourceEnvironment.withServiceName(validated.serviceName) {
+      try ResourceEnvironment.withResourceAttributes(
+        validated.resourceAttributes
+      ) {
         ElasticApmAgent.start(with: builder.build())
       }
       guard let agent = ElasticApmAgent.shared() else {
