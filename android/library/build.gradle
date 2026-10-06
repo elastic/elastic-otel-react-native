@@ -37,4 +37,5 @@ dependencies {
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("io.opentelemetry:opentelemetry-sdk-testing:1.51.0")
+    testImplementation("org.robolectric:robolectric:4.17")
 }

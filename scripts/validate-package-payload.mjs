@@ -13,8 +13,10 @@ const allowed = [
   'README.md',
   'ElasticOtelReactNative.podspec',
   'babel-plugin.cjs',
+  'elastic-otel-config.schema.json',
   'package.json',
   'react-native.config.js',
+  'android/elastic-otel-config.gradle',
 ];
 
 for (const { path } of files) {
@@ -40,8 +42,11 @@ const required = [
   'README.md',
   'ElasticOtelReactNative.podspec',
   'babel-plugin.cjs',
+  'elastic-otel-config.schema.json',
+  'android/elastic-otel-config.gradle',
   'android/library/src/main/java/co/elastic/otel/reactnative/ManualTelemetry.kt',
   'android/library/src/main/java/co/elastic/otel/reactnative/Bootstrap.kt',
+  'android/library/src/main/java/co/elastic/otel/reactnative/ConfigFile.kt',
   'bin/elastic-otel-react-native.mjs',
   'docs/docset.yml',
   'docs/reference/edot-react-native/manual-instrumentation.md',

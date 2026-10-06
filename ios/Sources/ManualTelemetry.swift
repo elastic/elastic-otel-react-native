@@ -1,17 +1,16 @@
 import OpenTelemetryApi
 
+let defaultInstrumentationScopeName = "@elastic/otel-react-native"
+
 final class ManualTelemetry {
-  private let instrumentationScopeName: () -> String
   private let tracerProvider: () throws -> any TracerProvider
   private let loggerProvider: () throws -> any LoggerProvider
   private let spans = SpanHandleStore<any Span> { $0.end() }
 
   init(
-    instrumentationScopeName: @escaping () -> String,
     tracerProvider: @escaping () throws -> any TracerProvider,
     loggerProvider: @escaping () throws -> any LoggerProvider
   ) {
-    self.instrumentationScopeName = instrumentationScopeName
     self.tracerProvider = tracerProvider
     self.loggerProvider = loggerProvider
   }
@@ -21,7 +20,7 @@ final class ManualTelemetry {
     parentSpanHandle: String?
   ) throws -> String {
     let tracer = try tracerProvider().get(
-      instrumentationName: instrumentationScopeName()
+      instrumentationName: defaultInstrumentationScopeName
     )
     let builder = tracer.spanBuilder(
       spanName: try BridgeInput.spanName(name)
@@ -44,7 +43,7 @@ final class ManualTelemetry {
     spanHandle: String?
   ) throws {
     let builder = try loggerProvider()
-      .get(instrumentationScopeName: instrumentationScopeName())
+      .get(instrumentationScopeName: defaultInstrumentationScopeName)
       .logRecordBuilder()
       .setBody(.string(try BridgeInput.logBody(body)))
       .setSeverity(try BridgeInput.severity(severity))

@@ -77,13 +77,19 @@ class ManualTelemetryTest {
     }
 
     @Test
-    fun configuredInstrumentationScopeIsAppliedToSpansAndLogs() {
-        assertInstrumentationScope("co.elastic.fixture")
-    }
+    fun spansAndLogsUseTheBridgeInstrumentationScope() {
+        val span = telemetry.startSpan("scope-test", null)
+        telemetry.emitLog("scope-test", "info", null)
+        telemetry.endSpan(span)
 
-    @Test
-    fun defaultInstrumentationScopeIsAppliedToSpansAndLogs() {
-        assertInstrumentationScope(DEFAULT_INSTRUMENTATION_SCOPE)
+        assertEquals(
+            "@elastic/otel-react-native",
+            spans.finishedSpanItems.single().instrumentationScopeInfo.name,
+        )
+        assertEquals(
+            "@elastic/otel-react-native",
+            logs.finishedLogRecordItems.single().instrumentationScopeInfo.name,
+        )
     }
 
     @Test
@@ -222,18 +228,5 @@ class ManualTelemetryTest {
             assertEquals(parent.traceId, log.spanContext.traceId)
             assertEquals(parent.spanId, log.spanContext.spanId)
         }
-    }
-
-    private fun assertInstrumentationScope(scopeName: String) {
-        val scopedTelemetry = ManualTelemetry(
-            instrumentationScopeName = { scopeName },
-            openTelemetry = { sdk },
-        )
-        val span = scopedTelemetry.startSpan("scope-test", null)
-        scopedTelemetry.emitLog("scope-test", "info", null)
-        scopedTelemetry.endSpan(span)
-
-        assertEquals(scopeName, spans.finishedSpanItems.single().instrumentationScopeInfo.name)
-        assertEquals(scopeName, logs.finishedLogRecordItems.single().instrumentationScopeInfo.name)
     }
 }

@@ -13,7 +13,6 @@ class ElasticOtelReactNativeModule(
 ) : ReactContextBaseJavaModule(reactContext) {
     private val telemetry = ManualTelemetry(
         openTelemetry = { ElasticOtelReactNative.requireAgent().getOpenTelemetry() },
-        instrumentationScopeName = { ElasticOtelReactNative.instrumentationScopeName() },
     )
     private val interactions = InteractionTelemetry(
         openTelemetry = { ElasticOtelReactNative.requireAgent().getOpenTelemetry() },

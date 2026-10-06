@@ -7,7 +7,9 @@ description: Create related spans and correlate logs through the cross-platform 
 
 The JavaScript surface is identical on Android and iOS. It exposes readiness,
 named span start/end, severity-aware logs, and a narrow widget-click EventRecord
-API. All calls return promises.
+API. All calls return promises. Spans and logs created through this API use the
+instrumentation scope `@elastic/otel-react-native`; widget-click events use
+`@elastic/otel-react-native.interactions`.
 
 ## Check readiness
 

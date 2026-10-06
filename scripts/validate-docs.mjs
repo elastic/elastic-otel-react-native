@@ -2,7 +2,12 @@ import { readFile } from 'node:fs/promises';
 import { dirname, extname, join, normalize, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { PLUGINS } from '../bin/elastic-otel-react-native.mjs';
+import Ajv2020 from 'ajv/dist/2020.js';
+
+import {
+  CONFIG_SCRIPT_LINE,
+  PLUGINS,
+} from '../bin/elastic-otel-react-native.mjs';
 import { readEdotIosVersion } from './check-edot-versions.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -194,6 +199,57 @@ for (const plugin of PLUGINS) {
   const occurrences = gettingStarted.split(plugin).length - 1;
   if (occurrences < 2) {
     throw new Error(`The manual fallback is missing ${plugin}.`);
+  }
+}
+
+const manualFallback = gettingStarted.slice(
+  gettingStarted.indexOf('## Manual host setup fallback'),
+  gettingStarted.indexOf('## Bootstrap before React Native'),
+);
+for (const [path, markdown] of [
+  ['README.md', markdownCache.get('README.md')],
+  ['the getting-started manual fallback', manualFallback],
+]) {
+  if (!markdown.includes(CONFIG_SCRIPT_LINE)) {
+    throw new Error(`${path} is missing ${CONFIG_SCRIPT_LINE}.`);
+  }
+}
+
+const configSchema = JSON.parse(await load('elastic-otel-config.schema.json'));
+const configurationDoc = markdownCache.get(
+  'docs/reference/edot-react-native/configuration.md',
+);
+const tableKeys = configurationDoc
+  .split(/\r?\n/)
+  .map((line) => line.match(/^\|\s*`([^`]+)`\s*\|/)?.[1])
+  .filter(Boolean);
+const schemaKeys = Object.keys(configSchema.properties);
+if (tableKeys.sort().join() !== [...schemaKeys].sort().join()) {
+  throw new Error(
+    `The configuration key table lists ${tableKeys.join(', ')}; the schema defines ${schemaKeys.join(', ')}.`,
+  );
+}
+const configExamples = [
+  ...configurationDoc.matchAll(/^```json\r?\n([\s\S]*?)^```$/gm),
+].map((match) => match[1]);
+const ajv = new Ajv2020();
+const validateConfig = ajv.compile(configSchema);
+if (configExamples.length === 0) {
+  throw new Error('The configuration doc has no configuration file example.');
+}
+for (const example of configExamples) {
+  let parsed;
+  try {
+    parsed = JSON.parse(example);
+  } catch (error) {
+    throw new Error(
+      `The configuration file example is not valid JSON: ${error.message}`,
+    );
+  }
+  if (!validateConfig(parsed)) {
+    throw new Error(
+      `The configuration file example does not match the schema: ${ajv.errorsText(validateConfig.errors)}`,
+    );
   }
 }
 

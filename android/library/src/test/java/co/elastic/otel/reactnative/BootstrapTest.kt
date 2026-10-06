@@ -1,10 +1,17 @@
 package co.elastic.otel.reactnative
 
+import co.elastic.otel.android.connectivity.Authentication
+import co.elastic.otel.android.exporters.configuration.ExportProtocol
+import io.opentelemetry.api.common.AttributeKey
+import io.opentelemetry.sdk.resources.Resource
+import java.io.FileNotFoundException
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
+
+private val IDENTITY = mapOf("service.name" to "fixture")
 
 class BootstrapTest {
     @Test
@@ -16,68 +23,63 @@ class BootstrapTest {
             "agent"
         }
         val invalidConfigurations = listOf(
-            BootstrapConfiguration("", serviceName = "fixture"),
-            BootstrapConfiguration("ftp://example.test", serviceName = "fixture"),
-            BootstrapConfiguration("https:///path", serviceName = "fixture"),
-            BootstrapConfiguration("https://[invalid", serviceName = "fixture"),
-            BootstrapConfiguration("https://example.test/v1/traces", serviceName = "fixture"),
-            BootstrapConfiguration("https://example.test/v1/logs", serviceName = "fixture"),
-            BootstrapConfiguration("https://example.test/v1/metrics", serviceName = "fixture"),
-            BootstrapConfiguration("https://example.test/gateway/v1/traces/", serviceName = "fixture"),
-            BootstrapConfiguration("https://example.test/gateway/v1/logs/", serviceName = "fixture"),
-            BootstrapConfiguration("https://example.test/gateway/v1/metrics/", serviceName = "fixture"),
-            BootstrapConfiguration("https://example.test?signal=traces", serviceName = "fixture"),
-            BootstrapConfiguration("https://example.test#traces", serviceName = "fixture"),
+            BootstrapConfiguration("", resourceAttributes = IDENTITY),
+            BootstrapConfiguration("ftp://example.test", resourceAttributes = IDENTITY),
+            BootstrapConfiguration("https:///path", resourceAttributes = IDENTITY),
+            BootstrapConfiguration("https://[invalid", resourceAttributes = IDENTITY),
+            BootstrapConfiguration("https://example.test/v1/traces", resourceAttributes = IDENTITY),
+            BootstrapConfiguration("https://example.test/v1/logs", resourceAttributes = IDENTITY),
+            BootstrapConfiguration("https://example.test/v1/metrics", resourceAttributes = IDENTITY),
+            BootstrapConfiguration("https://example.test/gateway/v1/traces/", resourceAttributes = IDENTITY),
+            BootstrapConfiguration("https://example.test/gateway/v1/logs/", resourceAttributes = IDENTITY),
+            BootstrapConfiguration("https://example.test/gateway/v1/metrics/", resourceAttributes = IDENTITY),
+            BootstrapConfiguration("https://example.test?signal=traces", resourceAttributes = IDENTITY),
+            BootstrapConfiguration("https://example.test#traces", resourceAttributes = IDENTITY),
             BootstrapConfiguration(
                 "https://example.test",
                 authentication = AuthenticationConfiguration(apiKey = "key", secretToken = "token"),
-                serviceName = "fixture",
+                resourceAttributes = IDENTITY,
             ),
             BootstrapConfiguration(
                 "https://example.test",
                 authentication = AuthenticationConfiguration.apiKey(""),
-                serviceName = "fixture",
+                resourceAttributes = IDENTITY,
             ),
             BootstrapConfiguration(
                 "https://example.test",
                 authentication = AuthenticationConfiguration.secretToken(""),
-                serviceName = "fixture",
+                resourceAttributes = IDENTITY,
             ),
             BootstrapConfiguration(
                 "https://example.test",
                 sessionSampleRate = -0.01,
-                serviceName = "fixture",
+                resourceAttributes = IDENTITY,
             ),
             BootstrapConfiguration(
                 "https://example.test",
                 sessionSampleRate = 1.01,
-                serviceName = "fixture",
+                resourceAttributes = IDENTITY,
             ),
             BootstrapConfiguration(
                 "https://example.test",
                 sessionSampleRate = Double.NaN,
-                serviceName = "fixture",
+                resourceAttributes = IDENTITY,
             ),
             BootstrapConfiguration(
                 "https://example.test",
                 sessionSampleRate = Double.NEGATIVE_INFINITY,
-                serviceName = "fixture",
+                resourceAttributes = IDENTITY,
             ),
             BootstrapConfiguration(
                 "https://example.test",
                 sessionSampleRate = Double.POSITIVE_INFINITY,
-                serviceName = "fixture",
+                resourceAttributes = IDENTITY,
             ),
-            BootstrapConfiguration("https://example.test", serviceName = " "),
-            BootstrapConfiguration(
-                "https://example.test",
-                serviceName = "fixture",
-                instrumentationScopeName = " ",
-            ),
+            BootstrapConfiguration("https://example.test", resourceAttributes = mapOf("service.name" to " ")),
         )
 
         invalidConfigurations.forEach { configuration ->
-            assertThrows(BootstrapException::class.java) { lifecycle.initialize(configuration, factory) }
+            assertThrows(BootstrapException::class.java) { lifecycle.initialize({ configuration }, factory) }
             assertFalse(lifecycle.isInitialized())
         }
         assertTrue(created.isEmpty())
@@ -91,17 +93,15 @@ class BootstrapTest {
                 authentication = AuthenticationConfiguration.apiKey("api-key"),
                 protocol = Transport.GRPC,
                 sessionSampleRate = 0.25,
-                serviceName = " fixture ",
-                instrumentationScopeName = " co.elastic.fixture ",
+                resourceAttributes = IDENTITY,
             ),
         )
 
         assertEquals("https://example.test/", validated.exportUrl)
         assertEquals("fixture", validated.serviceName)
         assertEquals(0.25, validated.sessionSampleRate)
-        assertEquals("co.elastic.fixture", validated.instrumentationScopeName)
-        assertEquals(co.elastic.otel.android.exporters.configuration.ExportProtocol.GRPC, validated.protocol)
-        assertEquals("api-key", (validated.authentication as co.elastic.otel.android.connectivity.Authentication.ApiKey).key)
+        assertEquals(ExportProtocol.GRPC, validated.protocol)
+        assertEquals("api-key", (validated.authentication as Authentication.ApiKey).key)
     }
 
     @Test
@@ -109,13 +109,13 @@ class BootstrapTest {
         val withoutTrailingSlash = BootstrapValidator.validate(
             BootstrapConfiguration(
                 exportUrl = "https://example.test/tenant/otel",
-                serviceName = "fixture",
+                resourceAttributes = IDENTITY,
             ),
         )
         val withTrailingSlash = BootstrapValidator.validate(
             BootstrapConfiguration(
                 exportUrl = "https://example.test/tenant/otel/",
-                serviceName = "fixture",
+                resourceAttributes = IDENTITY,
             ),
         )
 
@@ -124,24 +124,42 @@ class BootstrapTest {
     }
 
     @Test
-    fun duplicateInitializationKeepsTheFirstAgent() {
-        val lifecycle = AgentLifecycle<String>()
-        val configuration = BootstrapConfiguration("https://example.test", serviceName = "fixture")
-        var factoryInvocations = 0
-
-        val first = lifecycle.initialize(configuration) {
-            factoryInvocations += 1
-            "agent-${System.nanoTime()}"
+    fun aSignalSpecificPathIsRejectedWithItsReason() {
+        val exception = assertThrows(BootstrapException::class.java) {
+            BootstrapValidator.validate(
+                BootstrapConfiguration("https://example.test/v1/traces", resourceAttributes = IDENTITY),
+            )
         }
 
-        assertThrows(BootstrapException::class.java) {
-            lifecycle.initialize(configuration) {
+        assertEquals("The OTLP base URL must not include a signal-specific path.", exception.message)
+    }
+
+    @Test
+    fun duplicateInitializationIsReportedBeforeTheConfigurationIsRead() {
+        val lifecycle = AgentLifecycle<String>()
+        var factoryInvocations = 0
+        val first = lifecycle.initialize({
+            BootstrapConfiguration("https://example.test", resourceAttributes = IDENTITY)
+        }) {
+            factoryInvocations += 1
+            "agent"
+        }
+        var supplierInvocations = 0
+
+        val exception = assertThrows(BootstrapException::class.java) {
+            lifecycle.initialize({
+                supplierInvocations += 1
+                ConfigFileReader.read { name -> throw FileNotFoundException(name) }
+            }) {
                 factoryInvocations += 1
                 "second-agent"
             }
         }
-        assertEquals(first, lifecycle.requireAgent())
+
+        assertEquals("EDOT Android has already been initialized.", exception.message)
+        assertEquals(0, supplierInvocations)
         assertEquals(1, factoryInvocations)
+        assertEquals(first, lifecycle.requireAgent())
     }
 
     @Test
@@ -150,7 +168,7 @@ class BootstrapTest {
 
         assertFalse(lifecycle.isInitialized())
         assertThrows(BootstrapException::class.java) { lifecycle.requireAgent() }
-        lifecycle.initialize(BootstrapConfiguration("https://example.test", serviceName = "fixture")) {
+        lifecycle.initialize({ BootstrapConfiguration("https://example.test", resourceAttributes = IDENTITY) }) {
             "agent"
         }
 
@@ -162,7 +180,7 @@ class BootstrapTest {
         val lifecycle = AgentLifecycle<String>()
 
         assertThrows(IllegalStateException::class.java) {
-            lifecycle.initialize(BootstrapConfiguration("https://example.test", serviceName = "fixture")) {
+            lifecycle.initialize({ BootstrapConfiguration("https://example.test", resourceAttributes = IDENTITY) }) {
                 throw IllegalStateException("factory failed")
             }
         }
@@ -173,22 +191,113 @@ class BootstrapTest {
     @Test
     fun defaultHttpAndNoAuthenticationMapToEdot() {
         val defaults = BootstrapValidator.validate(
-            BootstrapConfiguration("https://example.test", serviceName = "fixture"),
+            BootstrapConfiguration("https://example.test", resourceAttributes = IDENTITY),
         )
         val secretToken = BootstrapValidator.validate(
             BootstrapConfiguration(
                 "https://example.test",
                 authentication = AuthenticationConfiguration.secretToken("secret"),
-                serviceName = "fixture",
+                resourceAttributes = IDENTITY,
             ),
         )
 
-        assertEquals(co.elastic.otel.android.exporters.configuration.ExportProtocol.HTTP, defaults.protocol)
-        assertEquals(co.elastic.otel.android.connectivity.Authentication.None, defaults.authentication)
-        assertEquals(DEFAULT_INSTRUMENTATION_SCOPE, defaults.instrumentationScopeName)
+        assertEquals(ExportProtocol.HTTP, defaults.protocol)
+        assertEquals(Authentication.None, defaults.authentication)
         assertEquals(
             "secret",
-            (secretToken.authentication as co.elastic.otel.android.connectivity.Authentication.SecretToken).token,
+            (secretToken.authentication as Authentication.SecretToken).token,
+        )
+    }
+
+    @Test
+    fun builderIdentityAttributesAreSplitFromTheOtherResourceAttributes() {
+        val validated = BootstrapValidator.validate(
+            BootstrapConfiguration(
+                "https://example.test",
+                resourceAttributes = mapOf(
+                    "service.name" to "fixture",
+                    "service.version" to "1.2.3",
+                    "deployment.environment.name" to "production",
+                    "service.namespace" to "shop",
+                    "custom.key" to "value",
+                ),
+            ),
+        )
+        val nameOnly = BootstrapValidator.validate(
+            BootstrapConfiguration("https://example.test", resourceAttributes = IDENTITY),
+        )
+
+        assertEquals("fixture", validated.serviceName)
+        assertEquals("1.2.3", validated.serviceVersion)
+        assertEquals("production", validated.deploymentEnvironmentName)
+        assertEquals(
+            mapOf("service.namespace" to "shop", "custom.key" to "value"),
+            validated.otherResourceAttributes,
+        )
+        assertEquals("fixture", nameOnly.serviceName)
+        assertEquals(null, nameOnly.serviceVersion)
+        assertEquals(null, nameOnly.deploymentEnvironmentName)
+        assertEquals(emptyMap<String, String>(), nameOnly.otherResourceAttributes)
+    }
+
+    @Test
+    fun blankResourceIdentityFieldsAreRejected() {
+        val invalidConfigurations = mapOf(
+            "service.version" to BootstrapConfiguration(
+                "https://example.test",
+                resourceAttributes = IDENTITY + ("service.version" to " "),
+            ),
+            "deployment.environment.name" to BootstrapConfiguration(
+                "https://example.test",
+                resourceAttributes = IDENTITY + ("deployment.environment.name" to ""),
+            ),
+            "keys" to BootstrapConfiguration(
+                "https://example.test",
+                resourceAttributes = IDENTITY + (" " to "value"),
+            ),
+            "service.namespace" to BootstrapConfiguration(
+                "https://example.test",
+                resourceAttributes = IDENTITY + ("service.namespace" to " "),
+            ),
+        )
+
+        invalidConfigurations.forEach { (subject, configuration) ->
+            val exception = assertThrows(BootstrapException::class.java) {
+                BootstrapValidator.validate(configuration)
+            }
+            assertTrue(exception.message!!, exception.message!!.contains(subject))
+        }
+    }
+
+    @Test
+    fun aMissingServiceNameIsRejected() {
+        listOf(emptyMap(), mapOf("service.namespace" to "shop")).forEach { attributes ->
+            val exception = assertThrows(BootstrapException::class.java) {
+                BootstrapValidator.validate(
+                    BootstrapConfiguration("https://example.test", resourceAttributes = attributes),
+                )
+            }
+            assertEquals("The resource attribute service.name is required.", exception.message)
+        }
+    }
+
+    @Test
+    fun resourceAttributesAreAddedWithoutRemovingExistingAttributes() {
+        val existing = Resource.builder()
+            .put("service.name", "fixture")
+            .put("os.name", "Android")
+            .build()
+
+        val intercepted = resourceAttributesInterceptor(mapOf("service.namespace" to "x"))
+            .intercept(existing)
+
+        assertEquals(
+            mapOf(
+                AttributeKey.stringKey("service.name") to "fixture",
+                AttributeKey.stringKey("os.name") to "Android",
+                AttributeKey.stringKey("service.namespace") to "x",
+            ),
+            intercepted.attributes.asMap(),
         )
     }
 }
