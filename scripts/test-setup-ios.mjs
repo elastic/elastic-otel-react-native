@@ -82,16 +82,11 @@ async function snapshot(directory) {
 }
 
 function runCli(projectRoot, arguments_ = []) {
-  const run = spawnSync(
-    process.execPath,
-    [BIN, 'setup-ios', '--project-root', projectRoot, ...arguments_],
-    { encoding: 'utf8' },
-  );
-  assert.equal(run.stderr, '');
-  return {
-    exitCode: run.status,
-    result: JSON.parse(run.stdout),
-  };
+  const run = spawnSync(process.execPath, [BIN, 'setup-ios', ...arguments_], {
+    cwd: projectRoot,
+    encoding: 'utf8',
+  });
+  return { exitCode: run.status, output: `${run.stdout}${run.stderr}` };
 }
 
 async function verifyAccepted(name, mutate = async () => {}) {
@@ -99,23 +94,33 @@ async function verifyAccepted(name, mutate = async () => {}) {
   await copyDefaultTemplate(project);
   await mutate(project);
   const original = await snapshot(project);
-  for (const arguments_ of [['--dry-run'], ['--check'], []]) {
-    const run = runCli(project, arguments_);
-    assert.equal(run.exitCode, 0);
-    assert.equal(run.result.command, 'setup-ios');
-    assert.equal(run.result.code, 'no-changes-required');
-    assert.deepEqual(await snapshot(project), original);
-  }
+  const run = runCli(project);
+  assert.equal(run.exitCode, 0, run.output);
+  assert.match(run.output, /needs no EDOT iOS host-project changes/);
+  assert.deepEqual(await snapshot(project), original);
 }
 
-async function verifyRefusal(name, mutate) {
+async function verifyRefusal(name, mutate, diagnostic) {
   const project = join(WORK, name);
   await copyDefaultTemplate(project);
   await mutate(project);
   const before = await snapshot(project);
   const attempt = runCli(project);
-  assert.equal(attempt.exitCode, 2);
-  assert.equal(attempt.result.code, 'unsupported-project');
+  assert.equal(attempt.exitCode, 1, attempt.output);
+  assert.match(
+    attempt.output,
+    /does not match the supported bare React Native template layout/,
+  );
+  assert.match(attempt.output, diagnostic);
+  assert.deepEqual(await snapshot(project), before);
+}
+
+async function verifyUsage() {
+  const project = join(WORK, 'template');
+  const before = await snapshot(project);
+  const run = runCli(project, ['--project-root', '.']);
+  assert.equal(run.exitCode, 1, run.output);
+  assert.match(run.output, /^Usage: elastic-otel-react-native/);
   assert.deepEqual(await snapshot(project), before);
 }
 
@@ -134,20 +139,40 @@ await verifyAccepted('static-frameworks', async (project) => {
     ),
   );
 });
-await verifyRefusal('missing-react-native', async (project) => {
-  const file = join(project, 'package.json');
-  const packageJson = JSON.parse(await readFile(file, 'utf8'));
-  delete packageJson.dependencies['react-native'];
-  await writeFile(file, `${JSON.stringify(packageJson, null, 2)}\n`);
-});
-await verifyRefusal('unsupported-podfile', async (project) => {
-  const file = join(project, PODFILE);
-  await writeFile(
-    file,
-    (await readFile(file, 'utf8')).replace(
-      'config = use_native_modules!',
-      'config = custom_native_modules!',
-    ),
-  );
-});
+await verifyUsage();
+await verifyRefusal(
+  'missing-react-native',
+  async (project) => {
+    const file = join(project, 'package.json');
+    const packageJson = JSON.parse(await readFile(file, 'utf8'));
+    delete packageJson.dependencies['react-native'];
+    await writeFile(file, `${JSON.stringify(packageJson, null, 2)}\n`);
+  },
+  /package\.json must declare a react-native dependency/,
+);
+await verifyRefusal(
+  'unsupported-podfile',
+  async (project) => {
+    const file = join(project, PODFILE);
+    await writeFile(
+      file,
+      (await readFile(file, 'utf8')).replace(
+        'config = use_native_modules!',
+        'config = custom_native_modules!',
+      ),
+    );
+  },
+  /Missing supported Podfile anchor/,
+);
+await verifyRefusal(
+  'two-xcode-projects',
+  async (project) => {
+    await cp(
+      join(project, 'ios', 'EDOTReactNativeFixture.xcodeproj'),
+      join(project, 'ios', 'Second.xcodeproj'),
+      { recursive: true },
+    );
+  },
+  /Expected exactly one iOS Xcode project, found 2/,
+);
 console.log('iOS setup command layout and no-write tests passed.');

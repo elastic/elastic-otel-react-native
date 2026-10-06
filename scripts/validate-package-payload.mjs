@@ -26,6 +26,7 @@ for (const { path } of files) {
   if (
     !allowed.includes(path) &&
     path !== 'android/library/build.gradle' &&
+    path !== 'android/library/gradle.properties' &&
     !path.startsWith('android/library/src/main/') &&
     !path.startsWith('bin/') &&
     !path.startsWith('docs/') &&
@@ -44,6 +45,7 @@ const required = [
   'babel-plugin.cjs',
   'elastic-otel-config.schema.json',
   'android/elastic-otel-config.gradle',
+  'android/library/gradle.properties',
   'android/library/src/main/java/co/elastic/otel/reactnative/ManualTelemetry.kt',
   'android/library/src/main/java/co/elastic/otel/reactnative/Bootstrap.kt',
   'android/library/src/main/java/co/elastic/otel/reactnative/ConfigFile.kt',

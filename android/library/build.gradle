@@ -33,7 +33,7 @@ kotlin {
 
 dependencies {
     implementation("com.facebook.react:react-android")
-    implementation("co.elastic.otel.android:agent-sdk:1.10.0")
+    implementation("co.elastic.otel.android:agent-sdk:${edotAndroidVersion}")
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("io.opentelemetry:opentelemetry-sdk-testing:1.51.0")

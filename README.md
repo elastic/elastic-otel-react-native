@@ -23,8 +23,8 @@ Install the package, then configure each native host:
 
 ```sh
 npm install @elastic/otel-react-native
-npx elastic-otel-react-native setup-android --project-root .
-npx elastic-otel-react-native setup-ios --project-root .
+npx elastic-otel-react-native setup-android
+npx elastic-otel-react-native setup-ios
 ```
 
 Android setup adds the EDOT agent, OkHttp, and crash Gradle plugins and applies
@@ -38,8 +38,8 @@ iOS setup checks the project layout and makes no host changes; set the
 iOS deployment target to 16 and install pods with `USE_FRAMEWORKS=dynamic`.
 Neither command writes credentials, endpoints, the configuration file, or
 native bootstrap code. See
-[Get started](docs/reference/edot-react-native/getting-started.md) for dry-run,
-check, CocoaPods, manual fallback, and selected-release limitations.
+[Get started](docs/reference/edot-react-native/getting-started.md) for the exact
+Gradle edits, CocoaPods, manual fallback, and selected-release limitations.
 
 For Android, create `elastic-otel-config.json` at the project root. The
 configuration Gradle script copies it into the app assets at build time:
