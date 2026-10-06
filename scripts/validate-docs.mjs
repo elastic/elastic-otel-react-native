@@ -5,8 +5,10 @@ import { fileURLToPath } from 'node:url';
 import Ajv2020 from 'ajv/dist/2020.js';
 
 import {
+  APPLY_PLUGIN_LINES,
+  CLASSPATH_LINES,
   CONFIG_SCRIPT_LINE,
-  PLUGINS,
+  PLUGIN_PORTAL_LINE,
 } from '../bin/elastic-otel-react-native.mjs';
 import { readEdotIosVersion } from './check-edot-versions.mjs';
 
@@ -144,8 +146,8 @@ for (const staleExample of ['import { crash }', 'await crash()']) {
 }
 
 const expectedCommands = [
-  'npx elastic-otel-react-native setup-android --project-root .',
-  'npx elastic-otel-react-native setup-ios --project-root .',
+  'npx elastic-otel-react-native setup-android',
+  'npx elastic-otel-react-native setup-ios',
 ];
 for (const path of [
   'README.md',
@@ -195,24 +197,22 @@ for (const [component, version] of [
   }
 }
 
-for (const plugin of PLUGINS) {
-  const occurrences = gettingStarted.split(plugin).length - 1;
-  if (occurrences < 2) {
-    throw new Error(`The manual fallback is missing ${plugin}.`);
-  }
-}
-
 const manualFallback = gettingStarted.slice(
   gettingStarted.indexOf('## Manual host setup fallback'),
   gettingStarted.indexOf('## Bootstrap before React Native'),
 );
-for (const [path, markdown] of [
-  ['README.md', markdownCache.get('README.md')],
-  ['the getting-started manual fallback', manualFallback],
+for (const line of [
+  PLUGIN_PORTAL_LINE,
+  ...CLASSPATH_LINES,
+  ...APPLY_PLUGIN_LINES,
+  CONFIG_SCRIPT_LINE,
 ]) {
-  if (!markdown.includes(CONFIG_SCRIPT_LINE)) {
-    throw new Error(`${path} is missing ${CONFIG_SCRIPT_LINE}.`);
+  if (!manualFallback.includes(line)) {
+    throw new Error(`The getting-started manual fallback is missing ${line}.`);
   }
+}
+if (!markdownCache.get('README.md').includes(CONFIG_SCRIPT_LINE)) {
+  throw new Error(`README.md is missing ${CONFIG_SCRIPT_LINE}.`);
 }
 
 const configSchema = JSON.parse(await load('elastic-otel-config.schema.json'));

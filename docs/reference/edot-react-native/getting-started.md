@@ -80,36 +80,44 @@ npm install @elastic/otel-react-native
 From the consuming application's root, run:
 
 ```sh
-npx elastic-otel-react-native setup-android --project-root .
+npx elastic-otel-react-native setup-android
 ```
 
-The command supports the React Native template's Groovy layout. It adds an
-EDOT Android root plugin block, applies the agent, OkHttp, and crash plugins to
-the application module, and applies the package's configuration Gradle script
-after them. The script copies `elastic-otel-config.json` from the project root
-into the application assets at build time; see
-[Configuration file](configuration.md#configuration-file). Before writing, the
-command verifies the `react-native` dependency, the autolinking anchors, and
-any existing EDOT Android plugin and script declarations.
+With Yarn, pnpm, or Bun, use `yarn`, `pnpm exec`, or `bunx` in place of `npx`.
+
+The command supports the React Native template's Groovy layout and edits two
+files:
+
+- In `android/build.gradle`, it adds `gradlePluginPortal()` after
+  `mavenCentral()` in the `buildscript` repositories, because the EDOT Android
+  Gradle plugins are published on the Gradle Plugin Portal. It adds the agent,
+  OkHttp, and crash plugin `classpath` lines after
+  `classpath("com.android.tools.build:gradle")`.
+- In `android/app/build.gradle`, it applies the three plugins and the
+  package's configuration Gradle script after
+  `apply plugin: "com.facebook.react"`. The script copies
+  `elastic-otel-config.json` from the project root into the application assets
+  at build time; see [Configuration file](configuration.md#configuration-file).
+
+The command skips lines that are already present, so running it again changes
+nothing. If a file or one of those anchor lines is missing, it changes no file,
+prints the lines to add by hand, and exits with an error; see
+[Manual host setup fallback](#manual-host-setup-fallback). When it finishes,
+review the changes with `git diff`.
+
+The `classpath` lines read the EDOT Android version from the installed
+package, so upgrading `@elastic/otel-react-native` needs no edit to your Gradle
+files.
 
 The command never edits `MainApplication`, credentials, endpoints, manifests,
-network security, repositories, or host tool versions. It refuses conflicting
-versions, partial installation, ambiguous anchors, unsupported syntax, and
-files that change after inspection.
-
-Preview or check without writing:
-
-```sh
-npx elastic-otel-react-native setup-android --project-root . --dry-run
-npx elastic-otel-react-native setup-android --project-root . --check
-```
+network security, or host tool versions.
 
 ## Set up iOS
 
 From the same application root, run:
 
 ```sh
-npx elastic-otel-react-native setup-ios --project-root .
+npx elastic-otel-react-native setup-ios
 ```
 
 The command checks that the project uses the stock React Native Podfile
@@ -144,13 +152,26 @@ package product to the pod target.
 
 ## Manual host setup fallback
 
-For Android, add this block after the root `buildscript` block:
+For Android, add `gradlePluginPortal()` and the three EDOT Android `classpath`
+lines to the root `buildscript` block in `android/build.gradle`. Keep the
+version expression as shown; it reads the EDOT Android version from the
+installed package:
 
 ```groovy
-plugins {
-    id("co.elastic.otel.android.agent") version "1.10.0" apply false
-    id("co.elastic.otel.android.instrumentation.okhttp") version "1.10.0" apply false
-    id("co.elastic.otel.android.instrumentation.crash") version "1.10.0" apply false
+buildscript {
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
+    dependencies {
+        classpath("com.android.tools.build:gradle")
+        classpath("co.elastic.otel.android:agent-plugin:${findProject(':elastic_otel-react-native').properties['edotAndroidVersion']}")
+        classpath("co.elastic.otel.android.instrumentation:okhttp-plugin:${findProject(':elastic_otel-react-native').properties['edotAndroidVersion']}")
+        classpath("co.elastic.otel.android.instrumentation:crash-plugin:${findProject(':elastic_otel-react-native').properties['edotAndroidVersion']}")
+        classpath("com.facebook.react:react-native-gradle-plugin")
+        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin")
+    }
 }
 ```
 

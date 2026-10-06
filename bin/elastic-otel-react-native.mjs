@@ -1,1004 +1,218 @@
 #!/usr/bin/env node
 
-import { createHash } from 'node:crypto';
 import {
   chmod,
-  lstat,
   readFile,
   readdir,
   realpath,
   rename,
   rm,
+  stat,
   writeFile,
 } from 'node:fs/promises';
-import { dirname, isAbsolute, relative, resolve, sep } from 'node:path';
+import { basename, dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-export const EDOT_VERSION = '1.10.0';
-export const PLUGINS = [
+const USAGE = 'Usage: elastic-otel-react-native <setup-android|setup-ios>';
+const MANUAL_SETUP_DOCS = fileURLToPath(
+  new URL(
+    '../docs/reference/edot-react-native/getting-started.md',
+    import.meta.url,
+  ),
+);
+
+// The bridge's autolinked Gradle project declares the EDOT Android version in
+// android/library/gradle.properties, so host files carry no version.
+const EDOT_ANDROID_VERSION =
+  "${findProject(':elastic_otel-react-native').properties['edotAndroidVersion']}";
+
+export const PLUGIN_PORTAL_LINE = 'gradlePluginPortal()';
+export const CLASSPATH_LINES = [
+  'co.elastic.otel.android:agent-plugin',
+  'co.elastic.otel.android.instrumentation:okhttp-plugin',
+  'co.elastic.otel.android.instrumentation:crash-plugin',
+].map((artifact) => `classpath("${artifact}:${EDOT_ANDROID_VERSION}")`);
+export const APPLY_PLUGIN_LINES = [
   'co.elastic.otel.android.agent',
   'co.elastic.otel.android.instrumentation.okhttp',
   'co.elastic.otel.android.instrumentation.crash',
-];
+].map((plugin) => `apply plugin: "${plugin}"`);
 export const CONFIG_SCRIPT_LINE =
   'apply from: "../../node_modules/@elastic/otel-react-native/android/elastic-otel-config.gradle"';
 
-const TARGETS = [
+const ANDROID_FILES = [
   {
     path: 'android/build.gradle',
-    layout: 'root',
-    requiredPatterns: [
-      /^\s*classpath\("com\.android\.tools\.build:gradle"\)\s*$/m,
-      /^\s*classpath\("com\.facebook\.react:react-native-gradle-plugin"\)\s*$/m,
-      /^\s*classpath\("org\.jetbrains\.kotlin:kotlin-gradle-plugin"\)\s*$/m,
-      /^\s*apply plugin:\s*"com\.facebook\.react\.rootproject"\s*$/m,
+    edits: [
+      {
+        anchor: /^\s*mavenCentral\(\)\s*$/,
+        after: 'mavenCentral()',
+        lines: [PLUGIN_PORTAL_LINE],
+      },
+      {
+        anchor: /^\s*classpath\("com\.android\.tools\.build:gradle"\)\s*$/,
+        after: 'classpath("com.android.tools.build:gradle")',
+        lines: CLASSPATH_LINES,
+      },
     ],
-    pluginLine(plugin, indentation) {
-      return `${indentation}id("${plugin}") version "${EDOT_VERSION}" apply false`;
-    },
   },
   {
     path: 'android/app/build.gradle',
-    layout: 'app',
-    anchor: /^\s*apply plugin:\s*"com\.facebook\.react"\s*$/,
-    requiredPatterns: [
-      /^\s*apply plugin:\s*"com\.android\.application"\s*$/m,
-      /^\s*apply plugin:\s*"org\.jetbrains\.kotlin\.android"\s*$/m,
-      /^\s*apply plugin:\s*"com\.facebook\.react"\s*$/m,
-      /^\s*autolinkLibrariesWithApp\(\)\s*$/m,
-      /^\s*compileSdk\s+rootProject\.ext\.compileSdkVersion\s*$/m,
-      /^\s*minSdkVersion\s+rootProject\.ext\.minSdkVersion\s*$/m,
-      /^\s*targetSdkVersion\s+rootProject\.ext\.targetSdkVersion\s*$/m,
+    edits: [
+      {
+        anchor: /^\s*apply plugin:\s*"com\.facebook\.react"\s*$/,
+        after: 'apply plugin: "com.facebook.react"',
+        lines: [...APPLY_PLUGIN_LINES, CONFIG_SCRIPT_LINE],
+      },
     ],
-    pluginLine(plugin) {
-      return `apply plugin: "${plugin}"`;
-    },
   },
 ];
 
-const SUPPORT_CHECKS = [
-  {
-    path: 'package.json',
-    validate(content) {
-      try {
-        const packageJson = JSON.parse(content);
-        const dependencies = packageJson.dependencies ?? {};
-        return dependencies['react-native'] === undefined
-          ? ['package.json must declare a react-native dependency.']
-          : [];
-      } catch (error) {
-        return [`package.json is not valid JSON: ${error.message}`];
-      }
-    },
-  },
-  {
-    path: 'android/settings.gradle',
-    validate(content) {
-      const activeContent = stripGradleComments(content);
-      const required = [
-        {
-          description: 'React Native plugin-management include',
-          expression:
-            /\bpluginManagement\s*\{\s*includeBuild\(\s*["']\.\.\/node_modules\/@react-native\/gradle-plugin["']\s*\)\s*\}/g,
-        },
-        {
-          description: 'React Native settings plugin',
-          expression:
-            /\bplugins\s*\{\s*id\(\s*["']com\.facebook\.react\.settings["']\s*\)\s*\}/g,
-        },
-        {
-          description: 'React Native autolinking settings',
-          expression:
-            /\bextensions\.configure\(\s*com\.facebook\.react\.ReactSettingsExtension\s*\)\s*\{\s*ex\s*->\s*ex\.autolinkLibrariesFromCommand\(\)\s*\}/g,
-        },
-        {
-          description: 'application module include',
-          expression: /^\s*include\s+["']:app["']\s*$/gm,
-        },
-        {
-          description: 'React Native Gradle include',
-          expression:
-            /^\s*includeBuild\(\s*["']\.\.\/node_modules\/@react-native\/gradle-plugin["']\s*\)\s*$/gm,
-        },
-      ];
-      const diagnostics = [];
-      for (const { description, expression } of required) {
-        const count = [...activeContent.matchAll(expression)].length;
-        if (count !== 1) {
-          diagnostics.push(
-            `Expected one active ${description}, found ${count}.`,
-          );
-        }
-      }
-      return diagnostics;
-    },
-  },
-];
-
-class StaleInspectionError extends Error {
-  constructor(path, message) {
-    super(message);
-    this.path = path;
+async function readOptional(path) {
+  try {
+    return await readFile(path, 'utf8');
+  } catch (error) {
+    if (error.code === 'ENOENT') {
+      return null;
+    }
+    throw error;
   }
 }
 
-function hash(content) {
-  return createHash('sha256').update(content).digest('hex');
-}
-
-function fileIdentity(metadata) {
-  return {
-    device: metadata.dev,
-    inode: metadata.ino,
-    mode: metadata.mode,
-    size: metadata.size,
-    modifiedMilliseconds: metadata.mtimeMs,
-  };
-}
-
-function sameIdentity(left, right) {
-  return (
-    left.device === right.device &&
-    left.inode === right.inode &&
-    left.mode === right.mode &&
-    left.size === right.size &&
-    left.modifiedMilliseconds === right.modifiedMilliseconds
-  );
-}
-
-function stripGradleComments(content) {
-  let output = '';
-  let quote = null;
-  let escaped = false;
-  let lineComment = false;
-  let blockComment = false;
-
-  for (let index = 0; index < content.length; index += 1) {
-    const character = content[index];
-    const next = content[index + 1];
-
-    if (lineComment) {
-      if (character === '\n' || character === '\r') {
-        lineComment = false;
-        output += character;
-      } else {
-        output += ' ';
-      }
-      continue;
-    }
-    if (blockComment) {
-      if (character === '*' && next === '/') {
-        output += '  ';
-        index += 1;
-        blockComment = false;
-      } else {
-        output += character === '\n' || character === '\r' ? character : ' ';
-      }
-      continue;
-    }
-    if (quote) {
-      output += character;
-      if (escaped) {
-        escaped = false;
-      } else if (character === '\\') {
-        escaped = true;
-      } else if (character === quote) {
-        quote = null;
-      }
-      continue;
-    }
-    if (character === '"' || character === "'") {
-      quote = character;
-      output += character;
-      continue;
-    }
-    if (character === '/' && next === '/') {
-      output += '  ';
-      index += 1;
-      lineComment = true;
-      continue;
-    }
-    if (character === '/' && next === '*') {
-      output += '  ';
-      index += 1;
-      blockComment = true;
-      continue;
-    }
-    output += character;
-  }
-  return output;
-}
-
-async function observeRegularFile(file) {
-  const before = await lstat(file);
-  if (!before.isFile() || before.isSymbolicLink()) {
-    throw new Error('Target must be a regular file, not a symlink.');
-  }
-  const content = await readFile(file, 'utf8');
-  const after = await lstat(file);
-  const beforeIdentity = fileIdentity(before);
-  const afterIdentity = fileIdentity(after);
-  if (!sameIdentity(beforeIdentity, afterIdentity)) {
-    throw new Error('Target changed while it was being inspected.');
-  }
-  return { content, identity: afterIdentity };
-}
-
-function result({
-  command = 'setup-android',
-  mode,
-  outcome,
-  code,
-  message,
-  projectRoot,
-  files = [],
-  checks = [],
-  partialEffects = [],
-}) {
-  return {
-    protocolVersion: 1,
-    command,
-    mode,
-    outcome,
-    code,
-    message,
-    projectRoot,
-    files,
-    checks,
-    partialEffects,
-  };
-}
-
-function countMatches(lines, expression) {
-  return lines.reduce(
-    (count, line) => count + (expression.test(line) ? 1 : 0),
-    0,
-  );
-}
-
-function findBlock(lines, startExpression, name) {
-  const starts = [];
-  lines.forEach((line, index) => {
-    if (startExpression.test(line)) {
-      starts.push(index);
-    }
-  });
-  if (starts.length !== 1) {
-    return {
-      error: `Expected exactly one ${name} block, found ${starts.length}.`,
-    };
-  }
-
-  let depth = 0;
-  for (let index = starts[0]; index < lines.length; index += 1) {
-    depth += (lines[index].match(/\{/g) ?? []).length;
-    depth -= (lines[index].match(/\}/g) ?? []).length;
-    if (depth === 0) {
-      return { start: starts[0], end: index };
-    }
-    if (depth < 0) {
-      break;
-    }
-  }
-  return { error: `The ${name} block has unbalanced braces.` };
-}
-
-function pluginStates(target, lines, activeLines, block) {
-  const diagnostics = [];
-  const states = [];
-  for (const plugin of PLUGINS) {
-    const occurrences = activeLines
-      .map((line, index) => ({ line, originalLine: lines[index], index }))
-      .filter(({ line }) => line.includes(plugin));
-    if (occurrences.length > 1) {
-      diagnostics.push(
-        `Plugin ${plugin} appears ${occurrences.length} times; the anchor is ambiguous.`,
-      );
-      states.push('conflict');
-      continue;
-    }
-    if (occurrences.length === 0) {
-      states.push('missing');
-      continue;
-    }
-
-    const { originalLine, index } = occurrences[0];
-    const indentation = originalLine.match(/^\s*/)?.[0] ?? '';
-    const expected = target.pluginLine(plugin, indentation);
-    if (
-      originalLine !== expected ||
-      (block && (index <= block.start || index >= block.end))
-    ) {
-      diagnostics.push(
-        `Plugin ${plugin} conflicts with the required declaration: ${expected.trim()}.`,
-      );
-      states.push('conflict');
-    } else {
-      states.push('installed');
-    }
-  }
-  return { diagnostics, states };
-}
-
-function inspectRootContent(target, content, lines, activeLines, diagnostics) {
-  const buildscript = findBlock(
-    activeLines,
-    /^\s*buildscript\s*\{\s*$/,
-    'buildscript',
-  );
-  if (buildscript.error) {
-    diagnostics.push(buildscript.error);
-  }
-
-  const pluginBlockStarts = activeLines.filter((line) =>
-    /^\s*plugins\s*\{\s*$/.test(line),
-  ).length;
-  const pluginBlock =
-    pluginBlockStarts === 0
-      ? null
-      : findBlock(activeLines, /^\s*plugins\s*\{\s*$/, 'plugins');
-  if (pluginBlock?.error) {
-    diagnostics.push(pluginBlock.error);
-  }
-
-  const pluginInspection = pluginStates(
-    target,
-    lines,
-    activeLines,
-    pluginBlock?.error ? null : pluginBlock,
-  );
-  diagnostics.push(...pluginInspection.diagnostics);
-
-  if (pluginBlock && !pluginBlock.error) {
-    const unexpected = activeLines
-      .slice(pluginBlock.start + 1, pluginBlock.end)
-      .filter((line) => line.trim())
-      .filter((line) => !PLUGINS.some((plugin) => line.includes(plugin)));
-    if (unexpected.length > 0) {
-      diagnostics.push(
-        'The root plugins block contains unsupported declarations.',
-      );
-    }
-  }
-
-  const installed = pluginInspection.states.filter(
-    (state) => state === 'installed',
-  ).length;
-  const missing = pluginInspection.states.filter(
-    (state) => state === 'missing',
-  ).length;
-  if (!pluginBlock && installed > 0) {
-    diagnostics.push(
-      'EDOT plugin declarations must be inside the root plugins block.',
-    );
-  }
-  if (installed > 0 && missing > 0) {
-    diagnostics.push(
-      'The EDOT Android plugins are only partially installed in this file.',
-    );
-  }
-  if (pluginBlock && missing === PLUGINS.length) {
-    diagnostics.push('An unexpected root plugins block is already present.');
-  }
-
-  if (diagnostics.length > 0) {
-    return { state: 'refused' };
-  }
-  if (installed === PLUGINS.length) {
-    return { state: 'installed', pluginState: 'installed' };
-  }
-
-  const indentation = '    ';
-  const insertedLines = [
-    '',
-    'plugins {',
-    ...PLUGINS.map((plugin) => target.pluginLine(plugin, indentation)),
-    '}',
-  ];
-  const updatedLines = [...lines];
-  updatedLines.splice(buildscript.end + 1, 0, ...insertedLines);
-  return {
-    state: 'missing',
-    pluginState: 'missing',
-    updatedContent: updatedLines.join(content.includes('\r\n') ? '\r\n' : '\n'),
-    edit: {
-      afterLine: 'buildscript { ... }',
-      insertedLines: insertedLines.filter(Boolean).map((line) => line.trim()),
-    },
-  };
-}
-
-function inspectAppContent(target, content, lines, activeLines, diagnostics) {
-  if (activeLines.some((line) => /^\s*plugins\s*\{\s*$/.test(line))) {
-    diagnostics.push(
-      'The supported React Native application uses legacy apply-plugin declarations, not a plugins block.',
-    );
-  }
-  const unsupportedEdotPlugins = activeLines.filter(
-    (line) =>
-      line.includes('co.elastic.otel.android.') &&
-      !PLUGINS.some((plugin) => line.includes(plugin)),
-  );
-  if (unsupportedEdotPlugins.length > 0) {
-    diagnostics.push(
-      'The application applies an unsupported EDOT Android plugin.',
-    );
-  }
-
-  const pluginInspection = pluginStates(target, lines, activeLines, null);
-  diagnostics.push(...pluginInspection.diagnostics);
-  const installed = pluginInspection.states.filter(
-    (state) => state === 'installed',
-  ).length;
-  const missing = pluginInspection.states.filter(
-    (state) => state === 'missing',
-  ).length;
-  if (installed > 0 && missing > 0) {
-    diagnostics.push(
-      'The EDOT Android plugins are only partially installed in this file.',
-    );
-  }
-
-  const anchors = activeLines
-    .map((line, index) => ({ line, index }))
-    .filter(({ line }) => target.anchor.test(line));
-  if (anchors.length !== 1) {
-    diagnostics.push(
-      `Expected exactly one React Native apply-plugin insertion anchor, found ${anchors.length}.`,
-    );
-  }
-
-  const configScriptState = configScriptStateOf(
-    lines,
-    activeLines,
-    diagnostics,
-  );
-
-  if (diagnostics.length > 0) {
-    return { state: 'refused' };
-  }
-  const pluginState = installed === PLUGINS.length ? 'installed' : 'missing';
-  if (pluginState === 'installed' && configScriptState === 'installed') {
-    return { state: 'installed', pluginState };
-  }
-
-  const updatedLines = [...lines];
-  let edit;
-  if (pluginState === 'missing') {
-    const insertedLines = PLUGINS.map((plugin) => target.pluginLine(plugin));
-    updatedLines.splice(anchors[0].index + 1, 0, ...insertedLines);
-    edit = { afterLine: lines[anchors[0].index].trim(), insertedLines };
-  }
-  if (configScriptState === 'missing') {
-    // The script configures the Android application, so it follows the last
-    // EDOT Android plugin application.
-    const lastPluginIndex = updatedLines.findLastIndex((line) =>
-      PLUGINS.some((plugin) => line === target.pluginLine(plugin)),
-    );
-    updatedLines.splice(lastPluginIndex + 1, 0, CONFIG_SCRIPT_LINE);
-    edit = edit
-      ? { ...edit, insertedLines: [...edit.insertedLines, CONFIG_SCRIPT_LINE] }
-      : {
-          afterLine: updatedLines[lastPluginIndex].trim(),
-          insertedLines: [CONFIG_SCRIPT_LINE],
-        };
-  }
-  return {
-    state: 'missing',
-    pluginState,
-    updatedContent: updatedLines.join(content.includes('\r\n') ? '\r\n' : '\n'),
-    edit,
-  };
-}
-
-function configScriptStateOf(lines, activeLines, diagnostics) {
-  const occurrences = activeLines
-    .map((line, index) => ({ line, originalLine: lines[index] }))
-    .filter(({ line }) => line.includes('elastic-otel-config.gradle'));
-  if (occurrences.length > 1) {
-    diagnostics.push(
-      `The configuration Gradle script is applied ${occurrences.length} times.`,
-    );
-    return 'conflict';
-  }
-  if (occurrences.length === 0) {
-    return 'missing';
-  }
-  if (occurrences[0].originalLine !== CONFIG_SCRIPT_LINE) {
-    diagnostics.push(
-      `The configuration Gradle script conflicts with the required declaration: ${CONFIG_SCRIPT_LINE}.`,
-    );
-    return 'conflict';
-  }
-  return 'installed';
-}
-
-function inspectContent(target, content) {
+// Inserts each edit's missing lines as one block directly after its anchor,
+// wherever the present lines are. Lines match by trimmed text. Each addition
+// records whether its anchor was found.
+function planFile(content, edits) {
   const newline = content.includes('\r\n') ? '\r\n' : '\n';
   const lines = content.split(/\r?\n/);
-  const activeLines = stripGradleComments(content).split(/\r?\n/);
-  const diagnostics = [];
-
-  for (const pattern of target.requiredPatterns) {
-    if (!pattern.test(activeLines.join(newline))) {
-      diagnostics.push(`Missing supported project anchor matching ${pattern}.`);
+  const present = new Set(lines.map((line) => line.trim()));
+  const additions = [];
+  for (const edit of edits) {
+    const missing = edit.lines.filter((line) => !present.has(line));
+    if (missing.length === 0) {
+      continue;
     }
-  }
-
-  const inspection =
-    target.layout === 'root'
-      ? inspectRootContent(target, content, lines, activeLines, diagnostics)
-      : inspectAppContent(target, content, lines, activeLines, diagnostics);
-  return { diagnostics, newline, ...inspection };
-}
-
-async function inspectSupportCheck(projectRoot, check) {
-  try {
-    const { absolutePath, content, identity } = await observeProjectFile(
-      projectRoot,
-      check.path,
+    const anchorIndex = lines.findIndex((line) => edit.anchor.test(line));
+    additions.push({
+      after: edit.after,
+      lines: missing,
+      anchored: anchorIndex !== -1,
+    });
+    if (anchorIndex === -1) {
+      continue;
+    }
+    const indentation = lines[anchorIndex].match(/^\s*/)[0];
+    lines.splice(
+      anchorIndex + 1,
+      0,
+      ...missing.map((line) => `${indentation}${line}`),
     );
-    const diagnostics = check.validate(content);
-    return {
-      path: check.path,
-      absolutePath,
-      status: diagnostics.length === 0 ? 'verified' : 'refused',
-      diagnostics,
-      beforeSha256: hash(content),
-      beforeFileIdentity: identity,
-    };
-  } catch (error) {
-    return {
-      path: check.path,
-      status: 'refused',
-      diagnostics: [`Cannot read ${check.path}: ${error.message}`],
-    };
   }
+  return { content: lines.join(newline), additions };
 }
 
-async function inspectTarget(projectRoot, target) {
-  const fallbackAbsolutePath = resolve(projectRoot, target.path);
-  try {
-    const { absolutePath, content, identity } = await observeProjectFile(
-      projectRoot,
-      target.path,
-    );
-    const inspection = inspectContent(target, content);
-    if (inspection.state === 'refused') {
-      return {
-        path: target.path,
-        absolutePath,
-        status: 'refused',
-        diagnostics: inspection.diagnostics,
-        beforeSha256: hash(content),
-        beforeFileIdentity: identity,
-        originalContent: content,
-      };
+function printManualLines(plans) {
+  console.error('Add these lines manually:');
+  for (const { path, additions } of plans) {
+    if (additions.length === 0) {
+      continue;
     }
-    if (inspection.state === 'installed') {
-      return {
-        path: target.path,
-        absolutePath,
-        status: 'no-op',
-        diagnostics: [],
-        beforeSha256: hash(content),
-        afterSha256: hash(content),
-        beforeFileIdentity: identity,
-        originalContent: content,
-        pluginState: inspection.pluginState,
-      };
+    console.error(`\n${path}:`);
+    for (const { after, lines } of additions) {
+      console.error(`  After the line ${after}, add:`);
+      for (const line of lines) {
+        console.error(`    ${line}`);
+      }
     }
-    return {
-      path: target.path,
-      absolutePath,
-      pluginState: inspection.pluginState,
-      status: 'planned',
-      diagnostics: [],
-      beforeSha256: hash(content),
-      afterSha256: hash(inspection.updatedContent),
-      beforeFileIdentity: identity,
-      edit: inspection.edit,
-      originalContent: content,
-      updatedContent: inspection.updatedContent,
-    };
-  } catch (error) {
-    return {
-      path: target.path,
-      absolutePath: fallbackAbsolutePath,
-      status: 'refused',
-      diagnostics: [`Cannot read ${target.path}: ${error.message}`],
-    };
   }
-}
-
-function publicFile(file) {
-  const {
-    absolutePath: _absolutePath,
-    beforeFileIdentity: _beforeFileIdentity,
-    originalContent: _originalContent,
-    updatedContent: _updatedContent,
-    pluginState: _pluginState,
-    ...visible
-  } = file;
-  return visible;
-}
-
-function publicCheck(check) {
-  const {
-    absolutePath: _absolutePath,
-    beforeFileIdentity: _beforeFileIdentity,
-    beforeSha256: _beforeSha256,
-    ...visible
-  } = check;
-  return visible;
-}
-
-async function inspectProject(projectRoot) {
-  const [files, checks] = await Promise.all([
-    Promise.all(TARGETS.map((target) => inspectTarget(projectRoot, target))),
-    Promise.all(
-      SUPPORT_CHECKS.map((check) => inspectSupportCheck(projectRoot, check)),
-    ),
-  ]);
-  const states = files.map((file) => file.status);
-  if (
-    states.includes('refused') ||
-    checks.some((check) => check.status === 'refused')
-  ) {
-    return {
-      code: 'unsupported-project',
-      message:
-        'The Android project does not match the supported bare React Native Groovy layout.',
-      files,
-      checks,
-      refused: true,
-    };
-  }
-  const pluginStates = files.map((file) => file.pluginState);
-  if (pluginStates.includes('missing') && pluginStates.includes('installed')) {
-    return {
-      code: 'partial-installation',
-      message:
-        'EDOT Android plugin wiring is partially installed across the target files.',
-      files: files.map((file) => ({
-        ...file,
-        status: 'refused',
-        diagnostics: [
-          ...(file.diagnostics ?? []),
-          'Both target files must either lack or fully contain the EDOT Android plugins.',
-        ],
-      })),
-      checks,
-      refused: true,
-    };
-  }
-  return { files, checks, refused: false };
-}
-
-function isWithin(root, candidate) {
-  const pathFromRoot = relative(root, candidate);
-  return (
-    pathFromRoot === '' ||
-    (!isAbsolute(pathFromRoot) &&
-      pathFromRoot !== '..' &&
-      !pathFromRoot.startsWith(`..${sep}`))
+  console.error(
+    `\nSee "Manual host setup fallback" in ${relative(process.cwd(), MANUAL_SETUP_DOCS)}.`,
   );
 }
 
-async function safeProjectPath(projectRoot, path) {
-  const absolutePath = resolve(projectRoot, path);
-  if (!isWithin(projectRoot, absolutePath)) {
-    throw new Error(`Path escapes the project root: ${path}`);
-  }
-
-  const canonicalParent = await realpath(dirname(absolutePath));
-  if (!isWithin(projectRoot, canonicalParent)) {
-    throw new Error(`Parent path escapes the project root: ${path}`);
-  }
-  const canonicalTarget = await realpath(absolutePath);
-  if (!isWithin(projectRoot, canonicalTarget)) {
-    throw new Error(`Target path escapes the project root: ${path}`);
-  }
-  return absolutePath;
-}
-
-async function observeProjectFile(projectRoot, path) {
-  const absolutePath = await safeProjectPath(projectRoot, path);
-  const observation = await observeRegularFile(absolutePath);
-  return { absolutePath, ...observation };
-}
-
-async function atomicWrite(file, content, projectRoot, path) {
-  await safeProjectPath(projectRoot, path);
-  const metadata = await lstat(file);
-  if (!metadata.isFile() || metadata.isSymbolicLink()) {
-    throw new Error('Target must remain a regular file, not a symlink.');
-  }
-  const temporary = `${file}.elastic-otel-react-native.${process.pid}.${Date.now()}.tmp`;
+// Writes a temporary file next to the real target and renames it over the
+// target, so a symlinked build file keeps its link and a reader never sees a
+// partial file.
+async function atomicWrite(path, content) {
+  const target = await realpath(path);
+  const { mode } = await stat(target);
+  const temporary = join(
+    dirname(target),
+    `.${basename(target)}.elastic-otel-react-native-${process.pid}.tmp`,
+  );
   try {
-    await writeFile(temporary, content, { mode: metadata.mode });
-    await chmod(temporary, metadata.mode);
-    await rename(temporary, file);
+    await writeFile(temporary, content, { mode });
+    await chmod(temporary, mode);
+    await rename(temporary, target);
   } catch (error) {
     await rm(temporary, { force: true });
     throw error;
   }
 }
 
-async function resolveProjectRoot(projectRoot) {
-  if (!projectRoot) {
-    throw new Error('--project-root is required.');
-  }
-  const requested = isAbsolute(projectRoot)
-    ? projectRoot
-    : resolve(process.cwd(), projectRoot);
-  const canonical = await realpath(requested);
-  const metadata = await lstat(canonical);
-  if (!metadata.isDirectory()) {
-    throw new Error('--project-root must identify a directory.');
-  }
-  return canonical;
-}
-
-function observedState(inspection) {
-  return new Map(
-    [...inspection.files, ...inspection.checks].map((item) => [
-      item.path,
-      {
-        path: item.path,
-        sha256: item.beforeSha256,
-        identity: item.beforeFileIdentity,
-      },
-    ]),
-  );
-}
-
-async function validateObservedState(projectRoot, state) {
-  for (const expected of state.values()) {
-    let observation;
-    try {
-      observation = await observeProjectFile(projectRoot, expected.path);
-    } catch (error) {
-      throw new StaleInspectionError(
-        expected.path,
-        `${expected.path} could not be safely re-read after inspection: ${error.message}`,
-      );
-    }
-    if (
-      !sameIdentity(observation.identity, expected.identity) ||
-      hash(observation.content) !== expected.sha256
-    ) {
-      throw new StaleInspectionError(
-        expected.path,
-        `${expected.path} changed after inspection.`,
-      );
-    }
-  }
-}
-
-function staleInspectionResult({
-  command = 'setup-android',
-  mode,
-  projectRoot,
-  inspection,
-  error,
-  partialEffects = [],
-}) {
-  const files = inspection.files.map((file) =>
-    file.path === error.path
-      ? { ...file, status: 'refused', diagnostics: [error.message] }
-      : file,
-  );
-  const checks = inspection.checks.map((check) =>
-    check.path === error.path
-      ? { ...check, status: 'refused', diagnostics: [error.message] }
-      : check,
-  );
-  return result({
-    command,
-    mode,
-    outcome: 'refused',
-    code: 'stale-inspection',
-    message:
-      'A project support input changed or became unsafe after inspection. Review partialEffects before retrying.',
-    projectRoot,
-    files: files.map(publicFile),
-    checks: checks.map(publicCheck),
-    partialEffects,
-  });
-}
-
-export async function executeSetup({
-  projectRoot,
-  mode = 'apply',
-  beforeMutation,
-  beforeFileWrite,
-  writeReplacement = atomicWrite,
-} = {}) {
-  let canonicalRoot;
-  try {
-    canonicalRoot = await resolveProjectRoot(projectRoot);
-  } catch (error) {
-    return result({
-      mode,
-      outcome: 'refused',
-      code: 'invalid-project-root',
-      message: error.message,
-      projectRoot: projectRoot ?? null,
-    });
-  }
-
-  const inspection = await inspectProject(canonicalRoot);
-  if (inspection.refused) {
-    return result({
-      mode,
-      outcome: 'refused',
-      code: inspection.code,
-      message: inspection.message,
-      projectRoot: canonicalRoot,
-      files: inspection.files.map(publicFile),
-      checks: inspection.checks.map(publicCheck),
-    });
-  }
-
-  const planned = inspection.files.filter((file) => file.status === 'planned');
-  if (planned.length === 0) {
-    return result({
-      mode,
-      outcome: 'success',
-      code: 'already-configured',
-      message: 'All required EDOT Android Gradle wiring is already present.',
-      projectRoot: canonicalRoot,
-      files: inspection.files.map(publicFile),
-      checks: inspection.checks.map(publicCheck),
-    });
-  }
-
-  if (mode === 'check') {
-    return result({
-      mode,
-      outcome: 'refused',
-      code: 'setup-required',
-      message: 'Required EDOT Android Gradle wiring is missing.',
-      projectRoot: canonicalRoot,
-      files: inspection.files.map(publicFile),
-      checks: inspection.checks.map(publicCheck),
-    });
-  }
-  if (mode === 'dry-run') {
-    return result({
-      mode,
-      outcome: 'success',
-      code: 'changes-planned',
-      message: 'The listed EDOT Android Gradle edits would be applied.',
-      projectRoot: canonicalRoot,
-      files: inspection.files.map(publicFile),
-      checks: inspection.checks.map(publicCheck),
-    });
-  }
-  if (mode !== 'apply') {
-    return result({
-      mode,
-      outcome: 'refused',
-      code: 'invalid-mode',
-      message: `Unsupported setup mode: ${mode}`,
-      projectRoot: canonicalRoot,
-      files: inspection.files.map(publicFile),
-      checks: inspection.checks.map(publicCheck),
-    });
-  }
-
-  if (beforeMutation) {
-    await beforeMutation({
-      projectRoot: canonicalRoot,
-      files: inspection.files,
-    });
-  }
-
-  const state = observedState(inspection);
-  try {
-    await validateObservedState(canonicalRoot, state);
-  } catch (error) {
-    if (error instanceof StaleInspectionError) {
-      return staleInspectionResult({
-        mode,
-        projectRoot: canonicalRoot,
-        inspection,
-        error,
-      });
-    }
-    throw error;
-  }
-
-  const partialEffects = [];
-  const files = [...inspection.files];
-  for (let index = 0; index < planned.length; index += 1) {
-    const plannedFile = planned[index];
-    const fileIndex = files.findIndex(
-      (candidate) => candidate.path === plannedFile.path,
+async function setupAndroid() {
+  const plans = [];
+  for (const { path, edits } of ANDROID_FILES) {
+    const content = await readOptional(path);
+    plans.push(
+      content === null
+        ? {
+            path,
+            found: false,
+            additions: edits.map(({ after, lines }) => ({
+              after,
+              lines,
+              anchored: false,
+            })),
+          }
+        : { path, found: true, ...planFile(content, edits) },
     );
-    try {
-      try {
-        await validateObservedState(canonicalRoot, state);
-      } catch (error) {
-        if (error instanceof StaleInspectionError) {
-          throw error;
-        }
-        throw new StaleInspectionError(plannedFile.path, error.message);
-      }
-      if (beforeFileWrite) {
-        await beforeFileWrite({
-          file: plannedFile.path,
-          index,
-          partialEffects: [...partialEffects],
-        });
-      }
-      await validateObservedState(canonicalRoot, state);
-      await writeReplacement(
-        plannedFile.absolutePath,
-        plannedFile.updatedContent,
-        canonicalRoot,
-        plannedFile.path,
-      );
-      const finalObservation = await observeProjectFile(
-        canonicalRoot,
-        plannedFile.path,
-      );
-      if (hash(finalObservation.content) !== plannedFile.afterSha256) {
-        throw new Error(
-          `${plannedFile.path} did not match the planned content after writing.`,
-        );
-      }
-      state.set(plannedFile.path, {
-        path: plannedFile.path,
-        sha256: plannedFile.afterSha256,
-        identity: finalObservation.identity,
-      });
-      files[fileIndex] = { ...plannedFile, status: 'applied' };
-      partialEffects.push({
-        path: plannedFile.path,
-        effect: 'applied',
-        afterSha256: plannedFile.afterSha256,
-      });
-    } catch (error) {
-      if (error instanceof StaleInspectionError) {
-        return staleInspectionResult({
-          mode,
-          projectRoot: canonicalRoot,
-          inspection: { ...inspection, files },
-          error,
-          partialEffects,
-        });
-      }
-      files[fileIndex] = {
-        ...plannedFile,
-        status: 'refused',
-        diagnostics: [`Write failed: ${error.message}`],
-      };
-      return result({
-        mode,
-        outcome: 'failure',
-        code: 'write-failed',
-        message:
-          'Setup stopped after an unexpected write failure. Review partialEffects before retrying.',
-        projectRoot: canonicalRoot,
-        files: files.map(publicFile),
-        checks: inspection.checks.map(publicCheck),
-        partialEffects,
-      });
-    }
   }
 
-  return result({
-    mode,
-    outcome: 'success',
-    code: 'changes-applied',
-    message: 'Required EDOT Android Gradle wiring was applied.',
-    projectRoot: canonicalRoot,
-    files: files.map(publicFile),
-    checks: inspection.checks.map(publicCheck),
-    partialEffects,
-  });
+  // Write nothing unless every needed anchor in both files is present.
+  const problems = plans.flatMap(({ path, found, additions }) =>
+    found
+      ? additions
+          .filter(({ anchored }) => !anchored)
+          .map(({ after }) => `${path} has no line ${after}.`)
+      : [`${path} was not found.`],
+  );
+  if (problems.length > 0) {
+    console.error('No file was changed.');
+    for (const problem of problems) {
+      console.error(problem);
+    }
+    printManualLines(plans);
+    return 1;
+  }
+
+  const updated = [];
+  for (const { path, content, additions } of plans) {
+    if (additions.length === 0) {
+      continue;
+    }
+    try {
+      await atomicWrite(path, content);
+    } catch (error) {
+      console.error(
+        updated.length > 0
+          ? `Updated ${updated.join(', ')}.`
+          : 'No file was updated.',
+      );
+      console.error(`Failed to update ${path}: ${error.message}`);
+      return 1;
+    }
+    updated.push(path);
+  }
+
+  if (updated.length === 0) {
+    console.log('EDOT Android is already configured.');
+  }
+  for (const path of updated) {
+    console.log(`Updated ${path}`);
+  }
+  console.log('Review the changes with git diff.');
+  return 0;
 }
 
 function stripRubyComments(content) {
@@ -1027,261 +241,95 @@ function stripRubyComments(content) {
       }
       return line;
     })
-    .join(content.includes('\r\n') ? '\r\n' : '\n');
+    .join('\n');
 }
 
-function inspectIosPodfile(content) {
-  const activeContent = stripRubyComments(content);
+const PODFILE_PATTERNS = [
+  /react-native\/scripts\/react_native_pods\.rb/,
+  /^\s*prepare_react_native_project!\s*$/m,
+  /^\s*config\s*=\s*use_native_modules!\s*$/m,
+  /^\s*use_react_native!\(\s*$/m,
+  /^\s*post_install\s+do\s+\|installer\|\s*$/m,
+  /^\s*react_native_post_install\(\s*$/m,
+];
+
+async function iosDiagnostics() {
   const diagnostics = [];
-  const requiredPatterns = [
-    /react-native\/scripts\/react_native_pods\.rb/,
-    /^\s*prepare_react_native_project!\s*$/m,
-    /^\s*config\s*=\s*use_native_modules!\s*$/m,
-    /^\s*use_react_native!\(\s*$/m,
-    /^\s*post_install\s+do\s+\|installer\|\s*$/m,
-    /^\s*react_native_post_install\(\s*$/m,
-  ];
-  for (const pattern of requiredPatterns) {
-    if (!pattern.test(activeContent)) {
-      diagnostics.push(`Missing supported Podfile anchor matching ${pattern}.`);
-    }
-  }
-  return diagnostics.length > 0
-    ? { state: 'refused', diagnostics }
-    : { state: 'installed', diagnostics: [] };
-}
 
-async function safeProjectDirectory(projectRoot, path) {
-  const absolutePath = resolve(projectRoot, path);
-  if (!isWithin(projectRoot, absolutePath)) {
-    throw new Error(`Path escapes the project root: ${path}`);
-  }
-  const canonicalParent = await realpath(dirname(absolutePath));
-  if (!isWithin(projectRoot, canonicalParent)) {
-    throw new Error(`Parent path escapes the project root: ${path}`);
-  }
-  const metadata = await lstat(absolutePath);
-  if (!metadata.isDirectory() || metadata.isSymbolicLink()) {
-    throw new Error('Target must be a directory, not a symlink.');
-  }
-  const canonical = await realpath(absolutePath);
-  if (!isWithin(projectRoot, canonical)) {
-    throw new Error(`Target path escapes the project root: ${path}`);
-  }
-  return canonical;
-}
-
-async function findIosProjectPath(projectRoot) {
-  const iosDirectory = await safeProjectDirectory(projectRoot, 'ios');
-  const projects = (await readdir(iosDirectory, { withFileTypes: true }))
-    .filter(
-      (entry) =>
-        entry.isDirectory() &&
-        !entry.isSymbolicLink() &&
-        entry.name.endsWith('.xcodeproj'),
-    )
-    .map((entry) => `ios/${entry.name}/project.pbxproj`);
-  if (projects.length !== 1) {
-    throw new Error(
-      `Expected exactly one iOS Xcode project, found ${projects.length}.`,
-    );
-  }
-  return projects[0];
-}
-
-async function inspectIosFile(projectRoot, path, inspect) {
-  const fallbackAbsolutePath = resolve(projectRoot, path);
   try {
-    const { absolutePath, content, identity } = await observeProjectFile(
-      projectRoot,
-      path,
-    );
-    const inspection = inspect(content);
-    if (inspection.state === 'refused') {
-      return {
-        path,
-        absolutePath,
-        status: 'refused',
-        diagnostics: inspection.diagnostics,
-        beforeSha256: hash(content),
-        beforeFileIdentity: identity,
-        originalContent: content,
-      };
+    const packageJson = JSON.parse(await readFile('package.json', 'utf8'));
+    if (packageJson.dependencies?.['react-native'] === undefined) {
+      diagnostics.push('package.json must declare a react-native dependency.');
     }
-    return {
-      path,
-      absolutePath,
-      status: 'no-op',
-      diagnostics: [],
-      beforeSha256: hash(content),
-      afterSha256: hash(content),
-      beforeFileIdentity: identity,
-      originalContent: content,
-    };
   } catch (error) {
-    return {
-      path,
-      absolutePath: fallbackAbsolutePath,
-      status: 'refused',
-      diagnostics: [`Cannot read ${path}: ${error.message}`],
-    };
+    diagnostics.push(`Cannot read package.json: ${error.message}`);
   }
-}
 
-async function inspectIosProjectSetup(projectRoot) {
-  let projectPath;
   try {
-    projectPath = await findIosProjectPath(projectRoot);
+    const projects = (await readdir('ios', { withFileTypes: true })).filter(
+      (entry) => entry.isDirectory() && entry.name.endsWith('.xcodeproj'),
+    );
+    if (projects.length === 1) {
+      await readFile(join('ios', projects[0].name, 'project.pbxproj'));
+    } else {
+      diagnostics.push(
+        `Expected exactly one iOS Xcode project, found ${projects.length}.`,
+      );
+    }
   } catch (error) {
-    return {
-      code: 'unsupported-project',
-      message:
-        'The iOS project does not match the supported bare React Native template layout.',
-      files: [
-        {
-          path: 'ios/*.xcodeproj/project.pbxproj',
-          status: 'refused',
-          diagnostics: [error.message],
-        },
-      ],
-      checks: [],
-      refused: true,
-    };
+    diagnostics.push(`Cannot read the iOS Xcode project: ${error.message}`);
   }
 
-  const [files, checks] = await Promise.all([
-    Promise.all([
-      inspectIosFile(projectRoot, 'ios/Podfile', inspectIosPodfile),
-      inspectIosFile(projectRoot, projectPath, () => ({
-        state: 'installed',
-        diagnostics: [],
-      })),
-    ]),
-    Promise.all([inspectSupportCheck(projectRoot, SUPPORT_CHECKS[0])]),
-  ]);
-  if (
-    files.some((file) => file.status === 'refused') ||
-    checks.some((check) => check.status === 'refused')
-  ) {
-    return {
-      code: 'unsupported-project',
-      message:
-        'The iOS project does not match the supported bare React Native template layout.',
-      files,
-      checks,
-      refused: true,
-    };
+  try {
+    const podfile = stripRubyComments(await readFile('ios/Podfile', 'utf8'));
+    for (const pattern of PODFILE_PATTERNS) {
+      if (!pattern.test(podfile)) {
+        diagnostics.push(
+          `Missing supported Podfile anchor matching ${pattern}.`,
+        );
+      }
+    }
+  } catch (error) {
+    diagnostics.push(`Cannot read ios/Podfile: ${error.message}`);
   }
-  return { files, checks, refused: false };
+
+  return diagnostics;
 }
 
 // setup-ios checks the project layout and makes no host change. EDOT iOS needs
 // only the manual steps in the getting-started guide (deployment target 16 and
 // dynamic frameworks).
-export async function executeIosSetup({ projectRoot, mode = 'apply' } = {}) {
-  let canonicalRoot;
-  try {
-    canonicalRoot = await resolveProjectRoot(projectRoot);
-  } catch (error) {
-    return result({
-      command: 'setup-ios',
-      mode,
-      outcome: 'refused',
-      code: 'invalid-project-root',
-      message: error.message,
-      projectRoot: projectRoot ?? null,
-    });
-  }
-  if (!['apply', 'check', 'dry-run'].includes(mode)) {
-    return result({
-      command: 'setup-ios',
-      mode,
-      outcome: 'refused',
-      code: 'invalid-mode',
-      message: `Unsupported setup mode: ${mode}`,
-      projectRoot: canonicalRoot,
-    });
-  }
-
-  const inspection = await inspectIosProjectSetup(canonicalRoot);
-  return result({
-    command: 'setup-ios',
-    mode,
-    outcome: inspection.refused ? 'refused' : 'success',
-    code: inspection.refused ? inspection.code : 'no-changes-required',
-    message: inspection.refused
-      ? inspection.message
-      : 'The iOS project needs no EDOT iOS host-project changes. Set the deployment target to iOS 16 or later and install pods with USE_FRAMEWORKS=dynamic.',
-    projectRoot: canonicalRoot,
-    files: inspection.files.map(publicFile),
-    checks: inspection.checks.map(publicCheck),
-  });
-}
-
-function parseArguments(arguments_) {
-  const command = arguments_[0];
-  if (!['setup-android', 'setup-ios'].includes(command)) {
-    throw new Error(
-      'Usage: elastic-otel-react-native <setup-android|setup-ios> --project-root <path> [--check|--dry-run]',
+async function setupIos() {
+  const diagnostics = await iosDiagnostics();
+  if (diagnostics.length > 0) {
+    console.error(
+      'The iOS project does not match the supported bare React Native template layout.',
     );
-  }
-  let projectRoot;
-  let mode = 'apply';
-  for (let index = 1; index < arguments_.length; index += 1) {
-    const argument = arguments_[index];
-    if (argument === '--project-root') {
-      if (projectRoot !== undefined || index + 1 >= arguments_.length) {
-        throw new Error('--project-root requires exactly one path.');
-      }
-      projectRoot = arguments_[index + 1];
-      index += 1;
-    } else if (argument === '--check' || argument === '--dry-run') {
-      const requested = argument === '--check' ? 'check' : 'dry-run';
-      if (mode !== 'apply') {
-        throw new Error('--check and --dry-run are mutually exclusive.');
-      }
-      mode = requested;
-    } else {
-      throw new Error(`Unknown argument: ${argument}`);
+    for (const diagnostic of diagnostics) {
+      console.error(`  ${diagnostic}`);
     }
+    return 1;
   }
-  return { command, projectRoot, mode };
+  console.log(
+    'The iOS project needs no EDOT iOS host-project changes. Set the deployment target to iOS 16 or later and install pods with USE_FRAMEWORKS=dynamic.',
+  );
+  return 0;
 }
 
-async function main() {
-  let options;
-  try {
-    options = parseArguments(process.argv.slice(2));
-  } catch (error) {
-    console.log(
-      JSON.stringify(
-        result({
-          mode: null,
-          outcome: 'refused',
-          code: 'invalid-arguments',
-          message: error.message,
-          projectRoot: null,
-        }),
-        null,
-        2,
-      ),
-    );
-    process.exitCode = 2;
-    return;
-  }
+const COMMANDS = { 'setup-android': setupAndroid, 'setup-ios': setupIos };
 
-  const { command, ...setupOptions } = options;
-  const setupResult =
-    command === 'setup-ios'
-      ? await executeIosSetup(setupOptions)
-      : await executeSetup(setupOptions);
-  console.log(JSON.stringify(setupResult, null, 2));
-  process.exitCode =
-    setupResult.outcome === 'success'
-      ? 0
-      : setupResult.outcome === 'refused'
-        ? 2
-        : 1;
+async function main(arguments_) {
+  const command = COMMANDS[arguments_[0]];
+  if (!command || arguments_.length !== 1) {
+    console.error(USAGE);
+    return 1;
+  }
+  try {
+    return await command();
+  } catch (error) {
+    console.error(error.message);
+    return 1;
+  }
 }
 
 async function isDirectInvocation() {
@@ -1299,5 +347,5 @@ async function isDirectInvocation() {
 }
 
 if (await isDirectInvocation()) {
-  await main();
+  process.exitCode = await main(process.argv.slice(2));
 }

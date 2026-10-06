@@ -2,20 +2,18 @@ import { readFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { EDOT_VERSION } from '../bin/elastic-otel-react-native.mjs';
-
 // Each platform has one source of truth for its EDOT version. Every listed
 // copy must match it:
-// - EDOT Android: the setup command's EDOT_VERSION. Copies: the agent-sdk
-//   dependency, the tested-versions row, and the manual-setup plugin snippet.
+// - EDOT Android: edotAndroidVersion in the library's gradle.properties. The
+//   agent-sdk dependency and the host classpath lines that setup-android adds
+//   read the property. Copy: the tested-versions row.
 // - EDOT iOS: the version inside the podspec's spm_dependency block. Copies:
 //   the SwiftPM manifest requirement, the SwiftPM lockfile pin, and the
 //   tested-versions row. scripts/validate-docs.mjs,
 //   scripts/validate-package-payload.mjs, and
 //   scripts/verify-fixture-autolinking.mjs read it through readEdotIosVersion.
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const CLI = 'bin/elastic-otel-react-native.mjs';
-const LIBRARY = 'android/library/build.gradle';
+const LIBRARY_PROPERTIES = 'android/library/gradle.properties';
 const PODSPEC = 'ElasticOtelReactNative.podspec';
 const PACKAGE_SWIFT = 'ios/Package.swift';
 const PACKAGE_RESOLVED = 'ios/Package.resolved';
@@ -65,31 +63,36 @@ export async function readEdotIosVersion() {
   return versions[0];
 }
 
+function libraryEdotAndroidVersions(properties) {
+  return captures(properties, /^edotAndroidVersion=(\S+)\s*$/gm);
+}
+
+export async function readEdotAndroidVersion() {
+  const properties = await load(LIBRARY_PROPERTIES);
+  const versions =
+    properties === null ? [] : libraryEdotAndroidVersions(properties);
+  if (versions.length !== 1) {
+    throw new Error(
+      `${LIBRARY_PROPERTIES} must declare exactly one edotAndroidVersion.`,
+    );
+  }
+  return versions[0];
+}
+
 const PLATFORMS = [
   {
     name: 'EDOT Android',
-    source: { path: CLI, what: 'EDOT_VERSION', read: () => [EDOT_VERSION] },
+    source: {
+      path: LIBRARY_PROPERTIES,
+      what: 'edotAndroidVersion',
+      read: libraryEdotAndroidVersions,
+    },
     copies: [
-      {
-        path: LIBRARY,
-        what: 'agent-sdk dependency',
-        read: (text) =>
-          captures(text, /"co\.elastic\.otel\.android:agent-sdk:([^"]+)"/g),
-      },
       {
         path: GETTING_STARTED,
         what: 'EDOT Android tested-versions row',
         read: (text) =>
           captures(text, /^\|\s*EDOT Android\s*\|\s*([^|\s]+)\s*\|$/gm),
-      },
-      {
-        path: GETTING_STARTED,
-        what: 'manual-setup plugin declarations',
-        read: (text) =>
-          captures(
-            text,
-            /id\("co\.elastic\.otel\.android\.[a-z.]+"\) version "([^"]+)"/g,
-          ),
       },
     ],
   },
@@ -182,7 +185,7 @@ async function check() {
   }
 }
 
-// Other scripts import readEdotIosVersion; only a direct run checks.
+// Other scripts import the read functions; only a direct run checks.
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   await check();
 }

@@ -38,6 +38,7 @@
     "ios/Sources",
     "android/elastic-otel-config.gradle",
     "android/library/build.gradle",
+    "android/library/gradle.properties",
     "android/library/src/main",
     "react-native.config.js",
     "README.md",
