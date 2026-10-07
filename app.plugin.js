@@ -19,6 +19,7 @@ const {
 const {
   APPLY_PLUGINS_EDIT,
   CLASSPATH_LINES,
+  CONFIG_FILE_NAME,
   CONFIG_FILE_REFERENCE_PATH,
   KOTLIN_IMPORT_LINE,
   KOTLIN_INITIALIZE_LINE,
@@ -28,8 +29,6 @@ const {
   SWIFT_INITIALIZE_LINES,
   planFile,
 } = require('./setup-edits.cjs');
-
-const CONFIG_FILE = 'elastic-otel-config.json';
 
 // The Expo template quotes the Android Gradle plugin classpath with single
 // quotes.
@@ -52,9 +51,9 @@ function missingAnchor(config, anchor) {
 function withEdit(withMod, edit) {
   return (config) =>
     withMod(config, (config) => {
-      if (!existsSync(join(config.modRequest.projectRoot, CONFIG_FILE))) {
+      if (!existsSync(join(config.modRequest.projectRoot, CONFIG_FILE_NAME))) {
         throw new Error(
-          `${CONFIG_FILE} was not found. Create it at the project root, next to package.json.`,
+          `${CONFIG_FILE_NAME} was not found. Create it at the project root, next to package.json.`,
         );
       }
       edit(config);

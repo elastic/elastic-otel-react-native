@@ -36,9 +36,10 @@ const APPLY_PLUGINS_EDIT = {
   lines: [...APPLY_PLUGIN_LINES, CONFIG_SCRIPT_LINE],
 };
 
+const CONFIG_FILE_NAME = 'elastic-otel-config.json';
 // The Xcode project path of the configuration file at the React Native
 // project root, relative to the ios directory that holds the project.
-const CONFIG_FILE_REFERENCE_PATH = '../elastic-otel-config.json';
+const CONFIG_FILE_REFERENCE_PATH = `../${CONFIG_FILE_NAME}`;
 
 const KOTLIN_IMPORT_LINE =
   'import co.elastic.otel.reactnative.ElasticOtelReactNative';
@@ -92,6 +93,7 @@ module.exports = {
   CONFIG_SCRIPT_LINE,
   PLUGIN_PORTAL_EDIT,
   APPLY_PLUGINS_EDIT,
+  CONFIG_FILE_NAME,
   CONFIG_FILE_REFERENCE_PATH,
   KOTLIN_IMPORT_LINE,
   KOTLIN_INITIALIZE_LINE,
