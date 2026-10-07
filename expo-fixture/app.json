@@ -1,0 +1,27 @@
+{
+  "expo": {
+    "name": "EDOTReactNativeExpoFixture",
+    "slug": "edot-react-native-expo-fixture",
+    "version": "1.0.0",
+    "android": {
+      "package": "co.elastic.otel.reactnative.expofixture"
+    },
+    "ios": {
+      "bundleIdentifier": "co.elastic.otel.reactnative.expofixture"
+    },
+    "plugins": [
+      "@elastic/otel-react-native",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "minSdkVersion": 26
+          },
+          "ios": {
+            "useFrameworks": "dynamic"
+          }
+        }
+      ]
+    ]
+  }
+}

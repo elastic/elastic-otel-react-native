@@ -9,7 +9,7 @@ import {
   CLASSPATH_LINES,
   CONFIG_SCRIPT_LINE,
   PLUGIN_PORTAL_LINE,
-} from '../bin/elastic-otel-react-native.mjs';
+} from '../setup-edits.cjs';
 import { readEdotIosVersion } from './check-edot-versions.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -195,6 +195,10 @@ for (const [component, version] of [
       `The canonical tested-version table is missing ${component}.`,
     );
   }
+}
+
+if (!gettingStarted.includes('\n## Set up an Expo app\n')) {
+  throw new Error('The getting-started guide is missing the Expo section.');
 }
 
 const manualFallback = gettingStarted.slice(

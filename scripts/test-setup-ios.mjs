@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 
 import xcode from 'xcode';
 
-import { CONFIG_FILE_REFERENCE_PATH } from '../bin/elastic-otel-react-native.mjs';
+import { CONFIG_FILE_REFERENCE_PATH } from '../setup-edits.cjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const FIXTURE = join(ROOT, 'fixture');

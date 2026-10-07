@@ -22,7 +22,7 @@ import {
   CLASSPATH_LINES,
   CONFIG_SCRIPT_LINE,
   PLUGIN_PORTAL_LINE,
-} from '../bin/elastic-otel-react-native.mjs';
+} from '../setup-edits.cjs';
 import { readEdotAndroidVersion } from './check-edot-versions.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
