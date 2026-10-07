@@ -67,10 +67,10 @@
     "edot:check": "node scripts/check-edot-versions.mjs",
     "lockfile:check": "node scripts/check-lockfiles.mjs",
     "expo:fixture:build": "node scripts/build-expo-fixture.mjs",
-    "validate:linux": "npm run edot:check && npm run lockfile:check && npm run format:check && npm run typecheck && npm run build:types && npm test && npm run android:test && npm run setup:test && npm run setup:ios:test && npm run fixture:typecheck && npm run docs:check && npm run pack:check && npm run fixture:build",
+    "validate:js-android": "npm run edot:check && npm run lockfile:check && npm run format:check && npm run typecheck && npm run build:types && npm test && npm run android:test && npm run setup:test && npm run setup:ios:test && npm run fixture:typecheck && npm run docs:check && npm run pack:check && npm run fixture:build",
     "validate:ios": "npm run ios:test && npm run fixture:ios:build && npm run fixture:verify-autolinking",
     "validate:expo": "npm run expo:fixture:build",
-    "validate": "npm run validate:linux && npm run validate:ios && npm run validate:expo"
+    "validate": "npm run validate:js-android && npm run validate:ios && npm run validate:expo"
   },
   "peerDependencies": {
     "expo": ">=57.0.0",

@@ -149,7 +149,7 @@ npm install
 npm run validate
 ```
 
-`npm run validate` chains the `validate:linux`, `validate:ios`, and
+`npm run validate` chains the `validate:js-android`, `validate:ios`, and
 `validate:expo` groups, and CI runs each group in its own job.
 
 Validation covers formatting, TypeScript declarations, JavaScript behavior,
