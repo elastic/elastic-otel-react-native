@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { dirname, extname, join, normalize, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { isDeepStrictEqual } from 'node:util';
 
 import Ajv2020 from 'ajv/dist/2020.js';
 
@@ -217,6 +218,30 @@ for (const [component, version] of [
 
 if (!gettingStarted.includes('\n## Set up an Expo app\n')) {
   throw new Error('The getting-started guide is missing the Expo section.');
+}
+// The Expo section's app.json example must list the same plugins and build
+// properties as the Expo fixture, whose build proves them.
+const expoSection = gettingStarted
+  .split('\n## Set up an Expo app\n')[1]
+  .split('\n## ')[0];
+const expoJsonBlocks = [...expoSection.matchAll(/```json\n([\s\S]*?)```/g)];
+if (expoJsonBlocks.length !== 1) {
+  throw new Error(
+    `The Expo section must hold one app.json example, found ${expoJsonBlocks.length}.`,
+  );
+}
+const expoFixtureApp = JSON.parse(
+  await readFile(join(ROOT, 'expo-fixture/app.json'), 'utf8'),
+);
+if (
+  !isDeepStrictEqual(
+    JSON.parse(expoJsonBlocks[0][1]).expo?.plugins,
+    expoFixtureApp.expo.plugins,
+  )
+) {
+  throw new Error(
+    "The Expo section's app.json example lists different expo.plugins than expo-fixture/app.json.",
+  );
 }
 
 const manualFallback = gettingStarted.slice(
