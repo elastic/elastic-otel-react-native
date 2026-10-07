@@ -9,7 +9,7 @@ import {
   CLASSPATH_LINES,
   CONFIG_SCRIPT_LINE,
   PLUGIN_PORTAL_LINE,
-} from '../bin/elastic-otel-react-native.mjs';
+} from '../setup-edits.cjs';
 import { readEdotIosVersion } from './check-edot-versions.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -175,6 +175,19 @@ const testedVersionRows = new Map(
     )
     .filter((cells) => cells.length === 2),
 );
+// The Expo rows come from the Expo fixture, so a fixture bump that skips the
+// docs fails here. npm resolves @expo/cli from expo's own node_modules first.
+const expoFixture = JSON.parse(
+  await readFile(join(ROOT, 'expo-fixture/package.json'), 'utf8'),
+);
+const expoLockPackages = JSON.parse(
+  await readFile(join(ROOT, 'expo-fixture/package-lock.json'), 'utf8'),
+).packages;
+const expoVersion = expoFixture.dependencies.expo;
+const expoCliVersion = (
+  expoLockPackages['node_modules/expo/node_modules/@expo/cli'] ??
+  expoLockPackages['node_modules/@expo/cli']
+).version;
 for (const [component, version] of [
   ['Node.js', '22.23.2'],
   ['React', '19.2.3'],
@@ -189,12 +202,21 @@ for (const [component, version] of [
   ['CocoaPods', '1.16.2'],
   ['iOS deployment target', '16.0'],
   ['EDOT iOS', `${EDOT_IOS_VERSION} (\`ElasticApm\` SwiftPM product)`],
+  [
+    'Expo SDK',
+    `${expoVersion.split('.')[0]} (\`expo\` ${expoVersion}, \`@expo/cli\` ${expoCliVersion})`,
+  ],
+  ['React Native for Expo', expoFixture.dependencies['react-native']],
 ]) {
   if (testedVersionRows.get(component) !== version) {
     throw new Error(
       `The canonical tested-version table is missing ${component}.`,
     );
   }
+}
+
+if (!gettingStarted.includes('\n## Set up an Expo app\n')) {
+  throw new Error('The getting-started guide is missing the Expo section.');
 }
 
 const manualFallback = gettingStarted.slice(

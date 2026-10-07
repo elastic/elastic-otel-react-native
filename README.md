@@ -27,6 +27,9 @@ npx elastic-otel-react-native setup-android
 npx elastic-otel-react-native setup-ios
 ```
 
+Expo apps use the package's config plugin instead; see
+[Set up an Expo app](docs/reference/edot-react-native/getting-started.md#set-up-an-expo-app).
+
 Android setup adds the EDOT agent, OkHttp, and crash Gradle plugins and applies
 the package's configuration Gradle script:
 
@@ -149,7 +152,8 @@ npm run validate
 Validation covers formatting, TypeScript declarations, JavaScript behavior,
 Android and iOS native tests, setup refusal/idempotency paths, docs and package
 payload, packed-package resolution, autolinking, CocoaPods/SwiftPM integration,
-and Android and iOS fixture builds.
+Android and iOS fixture builds, and the Expo config plugin's prebuild and
+builds.
 
 ## Documentation
 

@@ -1,0 +1,13 @@
+{
+  "name": "edot-react-native-expo-fixture",
+  "private": true,
+  "version": "0.0.0",
+  "main": "index.js",
+  "dependencies": {
+    "@elastic/otel-react-native": "file:..",
+    "expo": "57.0.27",
+    "expo-build-properties": "57.0.22",
+    "react": "19.2.3",
+    "react-native": "0.86.3"
+  }
+}

@@ -5,9 +5,10 @@ description: Known limitations of EDOT React Native.
 
 # Known issues
 
-- Only bare React Native applications are supported. The
+- Only bare React Native applications and Expo applications that generate
+  their native projects with the package's config plugin are supported. The
   [tested versions](../reference/edot-react-native/getting-started.md#tested-versions)
-  list the validated combination. Expo managed workflows are not supported.
+  list the validated combinations.
 - Android setup supports only the React Native template's Groovy
   `buildscript` and `apply plugin` layout.
 - iOS setup supports the stock React Native Podfile and one Xcode project with

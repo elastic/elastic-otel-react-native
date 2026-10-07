@@ -1,12 +1,13 @@
 ---
 navigation_title: Get started
-description: Install the EDOT React Native package in a supported bare Android and iOS application.
+description: Install the EDOT React Native package in a supported bare React Native or Expo application.
 ---
 
 # Get started with EDOT React Native
 
 This guide installs `@elastic/otel-react-native` in a bare React Native
-application.
+application. For an Expo application, see
+[Set up an Expo app](#set-up-an-expo-app).
 
 ## Tested versions
 
@@ -27,6 +28,8 @@ This table is the canonical record of tested versions.
 | CocoaPods             | 1.16.2                                      |
 | iOS deployment target | 16.0                                        |
 | EDOT iOS              | 2.1.0 (`ElasticApm` SwiftPM product)        |
+| Expo SDK              | 57 (`expo` 57.0.27, `@expo/cli` 57.0.28)    |
+| React Native for Expo | 0.86.3                                      |
 
 Stock React Native applications from 0.80 on also build with this package.
 React Native 0.80.3, 0.81.6, 0.83.10, 0.85.3, and 0.86.0 build a release APK
@@ -254,6 +257,76 @@ If telemetry does not appear, use the EDOT Android
 or the EDOT iOS
 [troubleshooting guide](docs-content://troubleshoot/ingest/opentelemetry/edot-sdks/ios/index.md).
 
+## Set up an Expo app
+
+Expo apps that generate their native projects with `npx expo prebuild` use
+the package's config plugin. During prebuild, the plugin makes the Android
+Gradle edits that `setup-android` makes, adds the configuration file reference
+that `setup-ios` adds, and adds the bootstrap code from
+[Bootstrap before React Native](#bootstrap-before-react-native) to
+`MainApplication.kt` and `AppDelegate.swift`. Expo apps skip the setup
+commands and do not add the native lines by hand.
+
+1. Install the package and `expo-build-properties`:
+
+   ```sh
+   npm install @elastic/otel-react-native
+   npx expo install expo-build-properties
+   ```
+
+2. Create `elastic-otel-config.json` at the project root, next to
+   `package.json`; see [Configuration file](configuration.md#configuration-file).
+3. In `app.json`, add `"@elastic/otel-react-native"` to `expo.plugins`. Set the
+   Android minimum SDK and iOS dynamic frameworks with `expo-build-properties`:
+
+   ```json
+   {
+     "expo": {
+       "plugins": [
+         "@elastic/otel-react-native",
+         [
+           "expo-build-properties",
+           {
+             "android": { "minSdkVersion": 26 },
+             "ios": { "useFrameworks": "dynamic" }
+           }
+         ]
+       ]
+     }
+   }
+   ```
+
+4. To record taps, add the Babel plugin to `babel.config.js`; see
+   [Automatic instrumentation](automatic-instrumentation.md#enable-widget-tap-events):
+
+   ```js
+   module.exports = {
+     presets: ['babel-preset-expo'],
+     plugins: [
+       [
+         '@elastic/otel-react-native/babel-plugin',
+         { includeAccessibilityLabel: true },
+       ],
+     ],
+   };
+   ```
+
+5. Generate the native projects:
+
+   ```sh
+   npx expo prebuild
+   ```
+
+Prebuild fails when `elastic-otel-config.json` is missing at the project root.
+It also fails when `MainApplication` is not Kotlin, `AppDelegate` is not
+Swift, or a generated file lacks a line that the plugin inserts after; the
+error names the file and the line.
+
+To remove the package from an Expo app, remove it from `expo.plugins`,
+remove the `@elastic/otel-react-native/babel-plugin` entry from
+`babel.config.js` if you added it, uninstall the package, and run
+`npx expo prebuild --clean`.
+
 ## Remove the package
 
 1. Remove both native bootstrap calls and imports.
@@ -263,6 +336,8 @@ or the EDOT iOS
 3. Remove the iOS Podfile line that forces dynamic frameworks only if no other
    dependency needs it; choose any new deployment target based on the remaining
    application dependencies.
-4. Uninstall `@elastic/otel-react-native`.
-5. Run `pod install` and rebuild both native applications to refresh
+4. Remove the `@elastic/otel-react-native/babel-plugin` entry from
+   `babel.config.js` if you added it.
+5. Uninstall `@elastic/otel-react-native`.
+6. Run `pod install` and rebuild both native applications to refresh
    autolinking.

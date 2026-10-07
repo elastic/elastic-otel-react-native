@@ -6,14 +6,18 @@ import { fileURLToPath } from 'node:url';
 
 // Each lockfile must be exactly what npm regenerates from its package.json.
 // The check regenerates it in a temporary copy, so it never edits the
-// worktree. The fixture links the package through `file:..`, so its copy
-// keeps the root package.json one directory above it.
+// worktree. The fixtures link the package through `file:..`, so their copies
+// keep the root package.json one directory above them.
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const LOCKFILES = [
   { directory: '.', fixes: 'npm install --package-lock-only' },
   {
     directory: 'fixture',
     fixes: 'npm --prefix fixture install --package-lock-only',
+  },
+  {
+    directory: 'expo-fixture',
+    fixes: 'npm --prefix expo-fixture install --package-lock-only',
   },
 ];
 

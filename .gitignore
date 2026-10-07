@@ -15,6 +15,10 @@ fixture/ios/Pods/
 fixture/ios/build/
 fixture/ios/*.xcworkspace/
 fixture/ios/Podfile.lock
+expo-fixture/node_modules/
+expo-fixture/android/
+expo-fixture/ios/
+expo-fixture/.expo/
 ios/.build/
 ios/.swiftpm/
 build/

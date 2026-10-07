@@ -15,6 +15,14 @@ import { fileURLToPath } from 'node:url';
 
 import xcode from 'xcode';
 
+import {
+  APPLY_PLUGINS_EDIT,
+  CLASSPATH_LINES,
+  CONFIG_FILE_REFERENCE_PATH,
+  PLUGIN_PORTAL_EDIT,
+  planFile,
+} from '../setup-edits.cjs';
+
 const USAGE = 'Usage: elastic-otel-react-native <setup-android|setup-ios>';
 const MANUAL_SETUP_DOCS = fileURLToPath(
   new URL(
@@ -23,34 +31,11 @@ const MANUAL_SETUP_DOCS = fileURLToPath(
   ),
 );
 
-// The bridge's autolinked Gradle project declares the EDOT Android version in
-// android/library/gradle.properties, so host files carry no version.
-const EDOT_ANDROID_VERSION =
-  "${findProject(':elastic_otel-react-native').properties['edotAndroidVersion']}";
-
-export const PLUGIN_PORTAL_LINE = 'gradlePluginPortal()';
-export const CLASSPATH_LINES = [
-  'co.elastic.otel.android:agent-plugin',
-  'co.elastic.otel.android.instrumentation:okhttp-plugin',
-  'co.elastic.otel.android.instrumentation:crash-plugin',
-].map((artifact) => `classpath("${artifact}:${EDOT_ANDROID_VERSION}")`);
-export const APPLY_PLUGIN_LINES = [
-  'co.elastic.otel.android.agent',
-  'co.elastic.otel.android.instrumentation.okhttp',
-  'co.elastic.otel.android.instrumentation.crash',
-].map((plugin) => `apply plugin: "${plugin}"`);
-export const CONFIG_SCRIPT_LINE =
-  'apply from: "../../node_modules/@elastic/otel-react-native/android/elastic-otel-config.gradle"';
-
 const ANDROID_FILES = [
   {
     path: 'android/build.gradle',
     edits: [
-      {
-        anchor: /^\s*mavenCentral\(\)\s*$/,
-        after: 'mavenCentral()',
-        lines: [PLUGIN_PORTAL_LINE],
-      },
+      PLUGIN_PORTAL_EDIT,
       {
         anchor: /^\s*classpath\("com\.android\.tools\.build:gradle"\)\s*$/,
         after: 'classpath("com.android.tools.build:gradle")',
@@ -60,13 +45,7 @@ const ANDROID_FILES = [
   },
   {
     path: 'android/app/build.gradle',
-    edits: [
-      {
-        anchor: /^\s*apply plugin:\s*"com\.facebook\.react"\s*$/,
-        after: 'apply plugin: "com.facebook.react"',
-        lines: [...APPLY_PLUGIN_LINES, CONFIG_SCRIPT_LINE],
-      },
-    ],
+    edits: [APPLY_PLUGINS_EDIT],
   },
 ];
 
@@ -79,38 +58,6 @@ async function readOptional(path) {
     }
     throw error;
   }
-}
-
-// Inserts each edit's missing lines as one block directly after its anchor,
-// wherever the present lines are. Lines match by trimmed text. Each addition
-// records whether its anchor was found.
-function planFile(content, edits) {
-  const newline = content.includes('\r\n') ? '\r\n' : '\n';
-  const lines = content.split(/\r?\n/);
-  const present = new Set(lines.map((line) => line.trim()));
-  const additions = [];
-  for (const edit of edits) {
-    const missing = edit.lines.filter((line) => !present.has(line));
-    if (missing.length === 0) {
-      continue;
-    }
-    const anchorIndex = lines.findIndex((line) => edit.anchor.test(line));
-    additions.push({
-      after: edit.after,
-      lines: missing,
-      anchored: anchorIndex !== -1,
-    });
-    if (anchorIndex === -1) {
-      continue;
-    }
-    const indentation = lines[anchorIndex].match(/^\s*/)[0];
-    lines.splice(
-      anchorIndex + 1,
-      0,
-      ...missing.map((line) => `${indentation}${line}`),
-    );
-  }
-  return { content: lines.join(newline), additions };
 }
 
 function printManualSetupReference() {
@@ -259,9 +206,6 @@ const PODFILE_PATTERNS = [
   /^\s*react_native_post_install\(\s*$/m,
 ];
 
-// The Xcode project path of the configuration file at the React Native
-// project root, relative to the ios directory that holds the project.
-export const CONFIG_FILE_REFERENCE_PATH = '../elastic-otel-config.json';
 const IOS_HOST_STEPS =
   'Set the deployment target to iOS 16 or later and install pods with USE_FRAMEWORKS=dynamic.';
 

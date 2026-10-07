@@ -22,6 +22,7 @@
       "default": "./src/index.ts"
     },
     "./babel-plugin": "./babel-plugin.cjs",
+    "./app.plugin.js": "./app.plugin.js",
     "./package.json": "./package.json"
   },
   "bin": {
@@ -30,6 +31,8 @@
   "files": [
     "bin",
     "babel-plugin.cjs",
+    "app.plugin.js",
+    "setup-edits.cjs",
     "docs",
     "src",
     "lib",
@@ -45,7 +48,7 @@
     "LICENSE"
   ],
   "scripts": {
-    "format:check": "prettier --check README.md package.json babel-plugin.cjs react-native.config.js src tests bin scripts docs fixture/index.ts fixture/tsconfig.json",
+    "format:check": "prettier --check README.md package.json babel-plugin.cjs app.plugin.js setup-edits.cjs react-native.config.js src tests bin scripts docs fixture/index.ts fixture/tsconfig.json expo-fixture/index.js expo-fixture/babel.config.js expo-fixture/app.json expo-fixture/elastic-otel-config.json",
     "typecheck": "tsc --noEmit",
     "build:types": "tsc --emitDeclarationOnly",
     "prepare": "npm run build:types",
@@ -63,11 +66,18 @@
     "fixture:verify-autolinking": "node scripts/verify-fixture-autolinking.mjs",
     "edot:check": "node scripts/check-edot-versions.mjs",
     "lockfile:check": "node scripts/check-lockfiles.mjs",
-    "validate": "npm run edot:check && npm run lockfile:check && npm run format:check && npm run typecheck && npm run build:types && npm test && npm run android:test && npm run ios:test && npm run setup:test && npm run setup:ios:test && npm run fixture:typecheck && npm run docs:check && npm run pack:check && npm run fixture:build && npm run fixture:ios:build && npm run fixture:verify-autolinking"
+    "expo:fixture:build": "node scripts/build-expo-fixture.mjs",
+    "validate": "npm run edot:check && npm run lockfile:check && npm run format:check && npm run typecheck && npm run build:types && npm test && npm run android:test && npm run ios:test && npm run setup:test && npm run setup:ios:test && npm run fixture:typecheck && npm run docs:check && npm run pack:check && npm run fixture:build && npm run fixture:ios:build && npm run fixture:verify-autolinking && npm run expo:fixture:build"
   },
   "peerDependencies": {
+    "expo": ">=57.0.0",
     "react": "*",
     "react-native": ">=0.80.0"
+  },
+  "peerDependenciesMeta": {
+    "expo": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@babel/core": "7.28.3",
