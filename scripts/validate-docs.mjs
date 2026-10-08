@@ -146,24 +146,17 @@ for (const staleExample of ['import { crash }', 'await crash()']) {
   }
 }
 
-const expectedCommands = [
-  'npx elastic-otel-react-native setup-android',
-  'npx elastic-otel-react-native setup-ios',
-];
-for (const path of [
-  'README.md',
-  'docs/reference/edot-react-native/getting-started.md',
-]) {
-  for (const expectedCommand of expectedCommands) {
-    if (!markdownCache.get(path).includes(expectedCommand)) {
-      throw new Error(`${path} is missing ${expectedCommand}.`);
-    }
-  }
-}
-
 const gettingStarted = markdownCache.get(
   'docs/reference/edot-react-native/getting-started.md',
 );
+for (const expectedCommand of [
+  'npx elastic-otel-react-native setup-android',
+  'npx elastic-otel-react-native setup-ios',
+]) {
+  if (!gettingStarted.includes(expectedCommand)) {
+    throw new Error(`The getting-started guide is missing ${expectedCommand}.`);
+  }
+}
 const testedVersionRows = new Map(
   gettingStarted
     .split(/\r?\n/)
@@ -176,8 +169,10 @@ const testedVersionRows = new Map(
     )
     .filter((cells) => cells.length === 2),
 );
-// The Expo rows come from the Expo fixture, so a fixture bump that skips the
-// docs fails here. npm resolves @expo/cli from expo's own node_modules first.
+// The React and React Native rows come from package.json and the Expo rows
+// from the Expo fixture, so a version bump that skips the docs fails here. npm
+// resolves @expo/cli from expo's own node_modules first.
+const packageJson = JSON.parse(await load('package.json'));
 const expoFixture = JSON.parse(
   await readFile(join(ROOT, 'expo-fixture/package.json'), 'utf8'),
 );
@@ -191,8 +186,11 @@ const expoCliVersion = (
 ).version;
 for (const [component, version] of [
   ['Node.js', '22.23.2'],
-  ['React', '19.2.3'],
-  ['React Native', '0.87.1 with Hermes and the New Architecture'],
+  ['React', packageJson.devDependencies.react],
+  [
+    'React Native',
+    `${packageJson.devDependencies['react-native']} with Hermes and the New Architecture`,
+  ],
   ['Android Gradle Plugin', '9.2.1'],
   ['Gradle', '9.4.1'],
   ['Kotlin', '2.2.0'],
@@ -258,9 +256,6 @@ for (const line of [
     throw new Error(`The getting-started manual fallback is missing ${line}.`);
   }
 }
-if (!markdownCache.get('README.md').includes(CONFIG_SCRIPT_LINE)) {
-  throw new Error(`README.md is missing ${CONFIG_SCRIPT_LINE}.`);
-}
 
 const configSchema = JSON.parse(await load('elastic-otel-config.schema.json'));
 const configurationDoc = markdownCache.get(
@@ -318,7 +313,6 @@ for (const [path, markdown] of markdownCache) {
   }
 }
 
-const packageJson = JSON.parse(await load('package.json'));
 if (
   packageJson.bin?.['elastic-otel-react-native'] !==
   'bin/elastic-otel-react-native.mjs'

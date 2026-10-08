@@ -7,21 +7,16 @@ public final class ElasticOtelReactNativeModule: NSObject {
   private static let errorCode = "E_ELASTIC_OTEL_REACT_NATIVE"
 
   private let telemetry = ManualTelemetry(
-    tracerProvider: {
-      try ElasticOtelReactNative.requireReady()
-      return OpenTelemetry.instance.tracerProvider
-    },
-    loggerProvider: {
-      try ElasticOtelReactNative.requireReady()
-      return OpenTelemetry.instance.loggerProvider
-    }
+    openTelemetry: ElasticOtelReactNativeModule.readyOpenTelemetry
   )
   private let interactions = InteractionTelemetry(
-    loggerProvider: {
-      try ElasticOtelReactNative.requireReady()
-      return OpenTelemetry.instance.loggerProvider
-    }
+    openTelemetry: ElasticOtelReactNativeModule.readyOpenTelemetry
   )
+
+  private static func readyOpenTelemetry() throws -> OpenTelemetry {
+    try ElasticOtelReactNative.requireReady()
+    return OpenTelemetry.instance
+  }
 
   @objc
   public static func requiresMainQueueSetup() -> Bool {
@@ -33,11 +28,7 @@ public final class ElasticOtelReactNativeModule: NSObject {
     _ resolve: RCTPromiseResolveBlock,
     rejecter _: RCTPromiseRejectBlock
   ) {
-    let ready = ElasticOtelReactNative.isReady
-    resolve([
-      "ready": ready,
-      "state": ready ? "ready" : "not_ready",
-    ])
+    resolve(["ready": ElasticOtelReactNative.isReady])
   }
 
   @objc(startSpan:parentSpanHandle:resolver:rejecter:)

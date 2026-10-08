@@ -22,8 +22,6 @@ if (!status.ready) {
 }
 ```
 
-`state` is either `ready` or `not_ready`.
-
 ## Create a root span
 
 ```ts
@@ -99,21 +97,19 @@ an OpenTelemetry `traceId` or `spanId`, and applications must not persist,
 parse, compare, or derive telemetry identity from it. A handle remains active
 until one successful `endSpan` call.
 
-An unknown or already-ended handle rejects the promise. A rejected parent
-creates no child, and a rejected log handle emits no log. If child creation or
-log emission races `endSpan`, native synchronization gives one of two outcomes:
-context use completes before the span ends, or the operation rejects after the
-handle has ended. Calls never fall back to another span.
+For which calls reject and what a rejected call creates, see
+[Initialization and errors](configuration.md#initialization-and-errors). If
+child creation or log emission races `endSpan`, native synchronization gives
+one of two outcomes: context use completes before the span ends, or the
+operation rejects after the handle has ended. Calls never fall back to another
+span.
 
 The bridge sets native OpenTelemetry parent or log context directly. It does
 not keep a thread-bound active JavaScript scope, so correlation does not depend
 on which thread serves a bridge call.
 
-On Android, bridge code obtains OpenTelemetry from the initialized EDOT agent.
-On iOS, `ElasticApmAgent.start` registers providers on
-`OpenTelemetry.instance`, and bridge code uses those global native providers.
-Both approaches keep the platform SDK authoritative and create no second
-pipeline.
+Spans and logs go through each native SDK's own OpenTelemetry pipeline; the
+bridge creates no second pipeline.
 
 The asynchronous bridge does not implement the synchronous OpenTelemetry
 JavaScript tracing interfaces. Applications needing the full upstream surface

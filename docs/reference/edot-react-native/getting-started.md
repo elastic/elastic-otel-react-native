@@ -38,11 +38,8 @@ on an API 26 emulator. The iOS app builds on React Native 0.83.10 and 0.85.3.
 On React Native 0.80 and 0.81, Xcode 27 fails in React Native's own `fmt` pod,
 with or without this package.
 
-The tested EDOT iOS release is distributed only through Swift Package Manager,
-declares iOS 16, and publishes the static `ElasticApm` product. The package
-podspec pins that exact release through React Native's supported
-`spm_dependency` integration with the public GitHub URL, so npm installations
-do not depend on a sibling checkout.
+The package brings in the EDOT iOS release listed above when you install pods,
+so you do not add EDOT iOS to the project yourself.
 
 ## Supported configuration
 
@@ -147,9 +144,7 @@ EDOT iOS needs two more manual steps:
   to iOS 16 or later. EDOT iOS declares iOS 16. Below that, Xcode stops
   with `compiling for iOS 15.1, but module 'ElasticOtelReactNative' has a
 minimum deployment target of iOS 16.0`.
-- Install pods with dynamic frameworks. The package podspec attaches EDOT iOS
-  through React Native's `spm_dependency`. React Native recommends dynamic
-  frameworks for pods that use Swift packages:
+- Install pods with dynamic frameworks:
 
   ```sh
   cd ios
@@ -160,10 +155,6 @@ minimum deployment target of iOS 16.0`.
   You can set `ENV['USE_FRAMEWORKS'] = 'dynamic'` in the Podfile instead. The
   setup leaves React Native's choice between prebuilt and source-built core
   pods unchanged.
-
-Autolinking evaluates `ElasticOtelReactNative.podspec`. React Native's
-`post_install` integration attaches the remote EDOT iOS `ElasticApm` Swift
-package product to the pod target.
 
 ## Manual host setup fallback
 
@@ -204,7 +195,7 @@ For iOS, add `elastic-otel-config.json` from the project root to the app
 target in Xcode as a reference, without copying it into the `ios` directory.
 Check that the file is listed in the target's Copy Bundle Resources build
 phase. Then follow the two manual steps in [Set up iOS](#set-up-ios). Do not
-add EDOT iOS as a sibling path or edit its repository to add a podspec.
+add EDOT iOS to the project yourself; the package brings it in.
 
 ## Bootstrap before React Native
 
@@ -240,10 +231,10 @@ do {
 }
 ```
 
-Both calls read `elastic-otel-config.json` and throw `BootstrapException` when
-it is missing or invalid; see
-[Configuration errors](configuration.md#configuration-errors). To build the
-configuration in code instead, see
+Both calls read `elastic-otel-config.json`. For what happens when it is
+missing or invalid, see
+[Initialization and errors](configuration.md#initialization-and-errors). To
+build the configuration in code instead, see
 [Configure in code](configuration.md#configure-in-code).
 
 The setup commands deliberately do not write bootstrap code or the

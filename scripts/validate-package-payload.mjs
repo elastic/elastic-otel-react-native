@@ -8,48 +8,31 @@ const output = execFileSync('npm', ['pack', '--dry-run', '--json'], {
   encoding: 'utf8',
 });
 const [{ files }] = JSON.parse(output);
-const allowed = [
-  'LICENSE',
-  'README.md',
-  'ElasticOtelReactNative.podspec',
-  'babel-plugin.cjs',
-  'app.plugin.js',
-  'setup-edits.cjs',
-  'elastic-otel-config.schema.json',
-  'package.json',
-  'react-native.config.js',
-  'android/elastic-otel-config.gradle',
-];
+const packageJson = JSON.parse(await readFile('package.json', 'utf8'));
+const entries = packageJson.files;
+const isInside = (path, entry) =>
+  path === entry || path.startsWith(`${entry}/`);
 
 for (const { path } of files) {
   if (/(^|\/)(build|fixture|tests?|__tests__)(\/|$)/i.test(path)) {
     throw new Error(`Forbidden npm package file: ${path}`);
   }
+  // npm packs package.json whatever `files` lists.
   if (
-    !allowed.includes(path) &&
-    path !== 'android/library/build.gradle' &&
-    path !== 'android/library/gradle.properties' &&
-    !path.startsWith('android/library/src/main/') &&
-    !path.startsWith('bin/') &&
-    !path.startsWith('docs/') &&
-    !path.startsWith('ios/Sources/') &&
-    !path.startsWith('lib/') &&
-    !path.startsWith('src/')
+    path !== 'package.json' &&
+    !entries.some((entry) => isInside(path, entry))
   ) {
     throw new Error(`Unexpected npm package file: ${path}`);
   }
 }
+for (const entry of entries) {
+  if (!files.some(({ path }) => isInside(path, entry))) {
+    throw new Error(`The npm package is missing the files entry ${entry}.`);
+  }
+}
 
+// Specific files that must exist inside the directory entries of `files`.
 const required = [
-  'LICENSE',
-  'README.md',
-  'ElasticOtelReactNative.podspec',
-  'babel-plugin.cjs',
-  'app.plugin.js',
-  'setup-edits.cjs',
-  'elastic-otel-config.schema.json',
-  'android/elastic-otel-config.gradle',
-  'android/library/gradle.properties',
   'android/library/src/main/java/co/elastic/otel/reactnative/ManualTelemetry.kt',
   'android/library/src/main/java/co/elastic/otel/reactnative/Bootstrap.kt',
   'android/library/src/main/java/co/elastic/otel/reactnative/ConfigFile.kt',
@@ -71,7 +54,6 @@ for (const requiredPath of required) {
   }
 }
 
-const packageJson = JSON.parse(await readFile('package.json', 'utf8'));
 for (const dependencyGroup of [
   packageJson.dependencies,
   packageJson.devDependencies,

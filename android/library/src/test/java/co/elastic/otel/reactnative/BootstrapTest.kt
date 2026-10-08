@@ -13,6 +13,23 @@ import org.junit.Test
 
 private val IDENTITY = mapOf("service.name" to "fixture")
 
+// The iOS BootstrapTests use the same two lists.
+private val SIGNAL_PATHS = listOf(
+    "/v1/traces",
+    "/v1/logs",
+    "/v1/metrics",
+    "/v1/traces/",
+    "/v1/logs/",
+    "/v1/metrics/",
+    "/gateway/v1/traces/",
+    "/gateway/v1/logs/",
+    "/gateway/v1/metrics/",
+    "/V1/Traces",
+    "/V1/Logs",
+    "/V1/Metrics",
+)
+private val BASE_PATHS = listOf("", "/gateway", "/v1/tracesx")
+
 class BootstrapTest {
     @Test
     fun invalidConfigurationsLeaveTheAgentUninitialized() {
@@ -28,18 +45,8 @@ class BootstrapTest {
             BootstrapConfiguration("https:///path", resourceAttributes = IDENTITY),
             BootstrapConfiguration("https://[invalid", resourceAttributes = IDENTITY),
             BootstrapConfiguration("https://example.test/v1/traces", resourceAttributes = IDENTITY),
-            BootstrapConfiguration("https://example.test/v1/logs", resourceAttributes = IDENTITY),
-            BootstrapConfiguration("https://example.test/v1/metrics", resourceAttributes = IDENTITY),
-            BootstrapConfiguration("https://example.test/gateway/v1/traces/", resourceAttributes = IDENTITY),
-            BootstrapConfiguration("https://example.test/gateway/v1/logs/", resourceAttributes = IDENTITY),
-            BootstrapConfiguration("https://example.test/gateway/v1/metrics/", resourceAttributes = IDENTITY),
             BootstrapConfiguration("https://example.test?signal=traces", resourceAttributes = IDENTITY),
             BootstrapConfiguration("https://example.test#traces", resourceAttributes = IDENTITY),
-            BootstrapConfiguration(
-                "https://example.test",
-                authentication = AuthenticationConfiguration(apiKey = "key", secretToken = "token"),
-                resourceAttributes = IDENTITY,
-            ),
             BootstrapConfiguration(
                 "https://example.test",
                 authentication = AuthenticationConfiguration.apiKey(""),
@@ -124,14 +131,29 @@ class BootstrapTest {
     }
 
     @Test
-    fun aSignalSpecificPathIsRejectedWithItsReason() {
-        val exception = assertThrows(BootstrapException::class.java) {
+    fun signalSpecificPathsAreRejectedAndBasePathsAccepted() {
+        SIGNAL_PATHS.forEach { path ->
+            val exception = assertThrows(path, BootstrapException::class.java) {
+                BootstrapValidator.validate(
+                    BootstrapConfiguration("https://example.test$path", resourceAttributes = IDENTITY),
+                )
+            }
+            assertEquals(path, "The OTLP base URL must not include a signal-specific path.", exception.message)
+        }
+        BASE_PATHS.forEach { path ->
             BootstrapValidator.validate(
-                BootstrapConfiguration("https://example.test/v1/traces", resourceAttributes = IDENTITY),
+                BootstrapConfiguration("https://example.test$path", resourceAttributes = IDENTITY),
             )
         }
+    }
 
-        assertEquals("The OTLP base URL must not include a signal-specific path.", exception.message)
+    @Test
+    fun secretsAreNotPrintedByTheirStringForm() {
+        val apiKey = AuthenticationConfiguration.apiKey("api-key-secret").toString()
+        val secretToken = AuthenticationConfiguration.secretToken("secret-token-value").toString()
+
+        assertEquals("ApiKey(key.length=14)", apiKey)
+        assertEquals("SecretToken(token.length=18)", secretToken)
     }
 
     @Test

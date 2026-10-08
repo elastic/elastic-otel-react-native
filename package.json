@@ -53,7 +53,7 @@
     "build:types": "tsc --emitDeclarationOnly",
     "prepare": "npm run build:types",
     "prepack": "npm run build:types",
-    "test": "jest --passWithNoTests",
+    "test": "jest",
     "android:test": "cd android && ./gradlew :library:testDebugUnitTest",
     "ios:test": "node scripts/run-ios-native-tests.mjs",
     "setup:test": "node scripts/test-setup-android.mjs",

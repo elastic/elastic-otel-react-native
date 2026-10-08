@@ -74,21 +74,8 @@ of `application(_:didFinishLaunchingWithOptions:)`,
 `try ElasticOtelReactNative.initialize()` reads the file from the app bundle
 and starts EDOT iOS before React Native starts.
 
-Rebuild the app after you change the file.
-
-### Configuration errors
-
-A missing file, invalid JSON, an unknown key, a value of the wrong type, or an
-invalid value throws `BootstrapException` from `initialize(this)` on Android
-and from `initialize()` on iOS. The message names the file and the offending
-key or value. Telemetry is not initialized. Because the file is bundled at
-build time, the error appears on the first run of the build that contains it.
-
-When the file is missing from the iOS app bundle, the message is:
-
-```text
-elastic-otel-config.json was not found in the app bundle. Create it at the React Native project root, run setup-ios, and check that the file is in the app target's Copy Bundle Resources build phase.
-```
+Rebuild the app after you change the file. For what happens when the file is
+missing or invalid, see [Initialization and errors](#initialization-and-errors).
 
 ### iOS resource attribute characters
 
@@ -157,9 +144,8 @@ do {
 }
 ```
 
-Use one form. Each native SDK initializes once, so calling both the file form
-and the `BootstrapConfiguration` form throws the duplicate-initialization
-`BootstrapException`. The file and the code are never merged.
+Use one form. The file and the code are never merged, and calling both forms
+throws; see [Initialization and errors](#initialization-and-errors).
 
 ## OTLP base URL
 
@@ -184,8 +170,9 @@ reconnects.
 
 ## Authentication
 
-In the configuration file, set `apiKey` or omit it. In code, choose one native
-form:
+In the configuration file, set `apiKey` or omit it. In code, the Kotlin and
+Swift `AuthenticationConfiguration` types each hold one form: no
+authentication, an API key, or a secret token. Choose one:
 
 ```kotlin
 AuthenticationConfiguration.none()
@@ -199,8 +186,7 @@ AuthenticationConfiguration.apiKey("api-key")
 AuthenticationConfiguration.secretToken("secret-token")
 ```
 
-Blank credentials are rejected. The Swift enum makes simultaneous API key and
-secret token configuration unrepresentable. See
+Blank credentials are rejected. See
 [API keys in the app](#api-keys-in-the-app) for how a bundled credential is
 exposed.
 
@@ -231,15 +217,25 @@ some characters are not supported; see
 
 Call Android `ElasticOtelReactNative.initialize` once from
 `Application.onCreate`, with or without a `BootstrapConfiguration`. Call the
-Swift equivalent once from `AppDelegate` before React Native starts. Invalid
-configuration and duplicate initialization throw `BootstrapException`. A
-second call reports the duplicate initialization before it reads or validates
-any configuration. A failed validation or native agent construction
-does not retain a partially initialized bridge agent.
+Swift equivalent once from `AppDelegate` before React Native starts.
 
-EDOT iOS registers its tracer, logger, and meter providers on
-`OpenTelemetry.instance` during `ElasticApmAgent.start`. The bridge uses those
-registered providers after startup rather than creating another SDK.
+A missing configuration file, invalid JSON, an unknown key, a value of the
+wrong type, or an invalid value throws `BootstrapException` from
+`initialize(this)` on Android and from `initialize()` on iOS. The message names
+the file and the offending key or value. An invalid `BootstrapConfiguration`
+passed in code throws `BootstrapException` the same way. Telemetry is not
+initialized. Because the file is bundled at build time, the error appears on
+the first run of the build that contains it.
+
+When the file is missing from the iOS app bundle, the message is:
+
+```text
+elastic-otel-config.json was not found in the app bundle. Create it at the React Native project root, run setup-ios, and check that the file is in the app target's Copy Bundle Resources build phase.
+```
+
+A second call throws `BootstrapException` for the duplicate initialization
+before it reads or validates any configuration. A failed validation or native
+agent construction does not retain a partially initialized bridge agent.
 
 JavaScript bridge calls return promises. Before successful native bootstrap,
 manual telemetry calls reject with code `E_ELASTIC_OTEL_REACT_NATIVE`. Blank
@@ -251,9 +247,8 @@ invalid log handles emit no log.
 
 On Android, the EDOT Android crash plugin records uncaught JVM exceptions as
 `app.crash` log records and exports them on the next launch. In a release
-build, React Native surfaces an uncaught JavaScript error as a
-`com.facebook.react.common.JavascriptException` that terminates the process, so
-EDOT Android records it like any other JVM crash. EDOT iOS enables native
+build, an uncaught JavaScript error that terminates the app is recorded the
+same way. EDOT iOS enables native
 crash reporting by default and owns persistence and next-launch export. The
 bridge does not expose a JavaScript-only crash toggle, intercept JavaScript
 fatal errors, or claim that rejected promises are native crashes.
