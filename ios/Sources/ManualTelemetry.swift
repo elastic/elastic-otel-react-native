@@ -2,24 +2,28 @@ import OpenTelemetryApi
 
 let defaultInstrumentationScopeName = "@elastic/otel-react-native"
 
+// The span context of a log record emitted outside any span. Manual and
+// interaction telemetry both use it.
+let invalidSpanContext = SpanContext.create(
+  traceId: .invalid,
+  spanId: .invalid,
+  traceFlags: TraceFlags(),
+  traceState: TraceState()
+)
+
 final class ManualTelemetry {
-  private let tracerProvider: () throws -> any TracerProvider
-  private let loggerProvider: () throws -> any LoggerProvider
+  private let openTelemetry: () throws -> OpenTelemetry
   private let spans = SpanHandleStore<any Span> { $0.end() }
 
-  init(
-    tracerProvider: @escaping () throws -> any TracerProvider,
-    loggerProvider: @escaping () throws -> any LoggerProvider
-  ) {
-    self.tracerProvider = tracerProvider
-    self.loggerProvider = loggerProvider
+  init(openTelemetry: @escaping () throws -> OpenTelemetry) {
+    self.openTelemetry = openTelemetry
   }
 
   func startSpan(
     name: String,
     parentSpanHandle: String?
   ) throws -> String {
-    let tracer = try tracerProvider().get(
+    let tracer = try openTelemetry().tracerProvider.get(
       instrumentationName: defaultInstrumentationScopeName
     )
     let builder = tracer.spanBuilder(
@@ -42,7 +46,7 @@ final class ManualTelemetry {
     severity: String,
     spanHandle: String?
   ) throws {
-    let builder = try loggerProvider()
+    let builder = try openTelemetry().loggerProvider
       .get(instrumentationScopeName: defaultInstrumentationScopeName)
       .logRecordBuilder()
       .setBody(.string(try BridgeInput.logBody(body)))
@@ -53,14 +57,7 @@ final class ManualTelemetry {
         builder.setSpanContext(span.context).emit()
       }
     } else {
-      builder.setSpanContext(Self.invalidSpanContext).emit()
+      builder.setSpanContext(invalidSpanContext).emit()
     }
   }
-
-  private static let invalidSpanContext = SpanContext.create(
-    traceId: .invalid,
-    spanId: .invalid,
-    traceFlags: TraceFlags(),
-    traceState: TraceState()
-  )
 }

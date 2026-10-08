@@ -5,16 +5,17 @@ description: React Native bridge for the Elastic Distribution of OpenTelemetry A
 
 # EDOT React Native
 
-`@elastic/otel-react-native` is a bridge that lets a bare React
-Native application use EDOT Android and EDOT iOS. Each native SDK owns
+`@elastic/otel-react-native` is a bridge that lets a React Native
+application use EDOT Android and EDOT iOS. Each native SDK owns
 initialization, export, buffering, sessions, sampling, automatic
 instrumentation, and native crash reporting. The package supplies React Native
 autolinking, safe host setup, native-first bootstrap types, and a small
 promise-based JavaScript bridge.
 
-The package supports bare React Native applications; see the
-[tested versions](getting-started.md#tested-versions). Expo managed projects are
-not supported.
+The package supports bare React Native applications and Expo applications that
+generate their native projects with `npx expo prebuild`; see the
+[tested versions](getting-started.md#tested-versions) and
+[Set up an Expo app](getting-started.md#set-up-an-expo-app).
 
 ## Available capabilities
 

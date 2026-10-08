@@ -25,16 +25,23 @@ data class BootstrapConfiguration(
     val resourceAttributes: Map<String, String>,
 )
 
-data class AuthenticationConfiguration(
-    val apiKey: String? = null,
-    val secretToken: String? = null,
-) {
+sealed class AuthenticationConfiguration {
+    data class ApiKey(val key: String) : AuthenticationConfiguration() {
+        override fun toString(): String = "ApiKey(key.length=${key.length})"
+    }
+
+    data class SecretToken(val token: String) : AuthenticationConfiguration() {
+        override fun toString(): String = "SecretToken(token.length=${token.length})"
+    }
+
+    data object None : AuthenticationConfiguration()
+
     companion object {
-        fun none() = AuthenticationConfiguration()
+        fun none(): AuthenticationConfiguration = None
 
-        fun apiKey(value: String) = AuthenticationConfiguration(apiKey = value)
+        fun apiKey(value: String): AuthenticationConfiguration = ApiKey(value)
 
-        fun secretToken(value: String) = AuthenticationConfiguration(secretToken = value)
+        fun secretToken(value: String): AuthenticationConfiguration = SecretToken(value)
     }
 }
 
@@ -78,7 +85,7 @@ internal object BootstrapValidator {
         if (uri.rawQuery != null || uri.rawFragment != null) {
             throw BootstrapException("The OTLP base URL must not include a query or fragment.")
         }
-        val normalizedPath = uri.path.orEmpty().trimEnd('/')
+        val normalizedPath = uri.path.orEmpty().lowercase().trimEnd('/')
         if (
             normalizedPath.endsWith("/v1/traces") ||
             normalizedPath.endsWith("/v1/logs") ||
@@ -122,26 +129,22 @@ internal object BootstrapValidator {
         }
     }
 
-    private fun validateAuthentication(configuration: AuthenticationConfiguration): Authentication {
-        val apiKey = configuration.apiKey
-        val secretToken = configuration.secretToken
-        if (apiKey != null && secretToken != null) {
-            throw BootstrapException("Choose only one authentication method.")
-        }
-        if (apiKey != null) {
-            if (apiKey.isBlank()) {
-                throw BootstrapException("The API key must not be blank.")
+    private fun validateAuthentication(configuration: AuthenticationConfiguration): Authentication =
+        when (configuration) {
+            is AuthenticationConfiguration.ApiKey -> {
+                if (configuration.key.isBlank()) {
+                    throw BootstrapException("The API key must not be blank.")
+                }
+                Authentication.ApiKey(configuration.key)
             }
-            return Authentication.ApiKey(apiKey)
-        }
-        if (secretToken != null) {
-            if (secretToken.isBlank()) {
-                throw BootstrapException("The secret token must not be blank.")
+            is AuthenticationConfiguration.SecretToken -> {
+                if (configuration.token.isBlank()) {
+                    throw BootstrapException("The secret token must not be blank.")
+                }
+                Authentication.SecretToken(configuration.token)
             }
-            return Authentication.SecretToken(secretToken)
+            AuthenticationConfiguration.None -> Authentication.None
         }
-        return Authentication.None
-    }
 }
 
 // Adds the configured attributes to the resource EDOT Android builds, keeping

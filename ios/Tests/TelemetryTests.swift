@@ -30,12 +30,9 @@ final class TelemetryTests: XCTestCase {
     OpenTelemetry.registerTracerProvider(tracerProvider: tracerProvider)
     OpenTelemetry.registerLoggerProvider(loggerProvider: loggerProvider)
 
-    telemetry = ManualTelemetry(
-      tracerProvider: { OpenTelemetry.instance.tracerProvider },
-      loggerProvider: { OpenTelemetry.instance.loggerProvider }
-    )
+    telemetry = ManualTelemetry(openTelemetry: { OpenTelemetry.instance })
     interactions = InteractionTelemetry(
-      loggerProvider: { OpenTelemetry.instance.loggerProvider }
+      openTelemetry: { OpenTelemetry.instance }
     )
   }
 
@@ -119,6 +116,28 @@ final class TelemetryTests: XCTestCase {
     XCTAssertTrue(logExporter.finished.isEmpty)
   }
 
+  func testAnUnavailableOpenTelemetryRejectsEveryCallWithItsError() {
+    let notReady: () throws -> OpenTelemetry = { throw NotReady() }
+    let telemetry = ManualTelemetry(openTelemetry: notReady)
+    let interactions = InteractionTelemetry(openTelemetry: notReady)
+
+    XCTAssertThrowsError(
+      try telemetry.startSpan(name: "span", parentSpanHandle: nil)
+    ) { XCTAssertTrue($0 is NotReady) }
+    XCTAssertThrowsError(
+      try telemetry.emitLog(body: "body", severity: "info", spanHandle: nil)
+    ) { XCTAssertTrue($0 is NotReady) }
+    XCTAssertThrowsError(
+      try interactions.recordWidgetClick(
+        widgetId: "checkout.submit",
+        widgetName: nil,
+        timestamp: 1_234
+      )
+    ) { XCTAssertTrue($0 is NotReady) }
+    XCTAssertTrue(spanExporter.finished.isEmpty)
+    XCTAssertTrue(logExporter.finished.isEmpty)
+  }
+
   func testWidgetClickEmitsAnEventRecordAtTheSuppliedTimestamp() throws {
     try interactions.recordWidgetClick(
       widgetId: "checkout.submit",
@@ -158,6 +177,8 @@ final class TelemetryTests: XCTestCase {
     XCTAssertFalse(record.spanContext?.isValid ?? false)
   }
 }
+
+private struct NotReady: Error {}
 
 private final class TestSpanExporter: SpanExporter, @unchecked Sendable {
   private let lock = NSLock()

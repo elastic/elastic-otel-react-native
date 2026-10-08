@@ -5,10 +5,10 @@ let interactionInstrumentationScope =
 let widgetClickEventName = "app.widget.click"
 
 final class InteractionTelemetry {
-  private let loggerProvider: () throws -> any LoggerProvider
+  private let openTelemetry: () throws -> OpenTelemetry
 
-  init(loggerProvider: @escaping () throws -> any LoggerProvider) {
-    self.loggerProvider = loggerProvider
+  init(openTelemetry: @escaping () throws -> OpenTelemetry) {
+    self.openTelemetry = openTelemetry
   }
 
   func recordWidgetClick(
@@ -26,7 +26,7 @@ final class InteractionTelemetry {
       attributes["app.widget.name"] = .string(widgetName)
     }
 
-    try loggerProvider()
+    try openTelemetry().loggerProvider
       .loggerBuilder(
         instrumentationScopeName: interactionInstrumentationScope
       )
@@ -34,15 +34,8 @@ final class InteractionTelemetry {
       .logRecordBuilder()
       .setEventName(widgetClickEventName)
       .setTimestamp(try BridgeInput.eventTimestamp(timestamp))
-      .setSpanContext(Self.invalidSpanContext)
+      .setSpanContext(invalidSpanContext)
       .setAttributes(attributes)
       .emit()
   }
-
-  private static let invalidSpanContext = SpanContext.create(
-    traceId: .invalid,
-    spanId: .invalid,
-    traceFlags: TraceFlags(),
-    traceState: TraceState()
-  )
 }

@@ -5,6 +5,23 @@ import XCTest
 
 private let identity = ["service.name": "service"]
 
+// The Android BootstrapTest uses the same two lists.
+private let signalPaths = [
+  "/v1/traces",
+  "/v1/logs",
+  "/v1/metrics",
+  "/v1/traces/",
+  "/v1/logs/",
+  "/v1/metrics/",
+  "/gateway/v1/traces/",
+  "/gateway/v1/logs/",
+  "/gateway/v1/metrics/",
+  "/V1/Traces",
+  "/V1/Logs",
+  "/V1/Metrics",
+]
+private let basePaths = ["", "/gateway", "/v1/tracesx"]
+
 final class BootstrapTests: XCTestCase {
   func testValidatesAndNormalizesConfiguration() throws {
     let validated = try BootstrapValidator.validate(
@@ -81,13 +98,6 @@ final class BootstrapTests: XCTestCase {
           resourceAttributes: identity
         ),
         "The OTLP export URL must include a host."
-      ),
-      (
-        BootstrapConfiguration(
-          exportUrl: "https://example.com/v1/traces",
-          resourceAttributes: identity
-        ),
-        "The OTLP base URL must not include a signal-specific path."
       ),
       (
         BootstrapConfiguration(
@@ -182,6 +192,37 @@ final class BootstrapTests: XCTestCase {
       XCTAssertThrowsError(try BootstrapValidator.validate(configuration)) {
         XCTAssertEqual(($0 as? BootstrapException)?.message, message)
       }
+    }
+  }
+
+  func testSignalSpecificPathsAreRejectedAndBasePathsAccepted() throws {
+    for path in signalPaths {
+      XCTAssertThrowsError(
+        try BootstrapValidator.validate(
+          BootstrapConfiguration(
+            exportUrl: "https://example.test\(path)",
+            resourceAttributes: identity
+          )
+        ),
+        path
+      ) {
+        XCTAssertEqual(
+          ($0 as? BootstrapException)?.message,
+          "The OTLP base URL must not include a signal-specific path.",
+          path
+        )
+      }
+    }
+    for path in basePaths {
+      XCTAssertNoThrow(
+        try BootstrapValidator.validate(
+          BootstrapConfiguration(
+            exportUrl: "https://example.test\(path)",
+            resourceAttributes: identity
+          )
+        ),
+        path
+      )
     }
   }
 

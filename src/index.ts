@@ -39,7 +39,6 @@ export type LogSeverity =
 
 export type OtelStatus = {
   ready: boolean;
-  state: 'ready' | 'not_ready';
 };
 
 export type StartSpanOptions = {

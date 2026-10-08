@@ -11,12 +11,9 @@ import com.facebook.react.module.annotations.ReactModule
 class ElasticOtelReactNativeModule(
     reactContext: ReactApplicationContext,
 ) : ReactContextBaseJavaModule(reactContext) {
-    private val telemetry = ManualTelemetry(
-        openTelemetry = { ElasticOtelReactNative.requireAgent().getOpenTelemetry() },
-    )
-    private val interactions = InteractionTelemetry(
-        openTelemetry = { ElasticOtelReactNative.requireAgent().getOpenTelemetry() },
-    )
+    private val openTelemetry = { ElasticOtelReactNative.requireAgent().getOpenTelemetry() }
+    private val telemetry = ManualTelemetry(openTelemetry = openTelemetry)
+    private val interactions = InteractionTelemetry(openTelemetry = openTelemetry)
 
     override fun getName(): String = NAME
 
@@ -24,7 +21,6 @@ class ElasticOtelReactNativeModule(
     fun getStatus(promise: Promise) {
         val status = Arguments.createMap().apply {
             putBoolean("ready", ElasticOtelReactNative.isReady())
-            putString("state", if (ElasticOtelReactNative.isReady()) "ready" else "not_ready")
         }
         promise.resolve(status)
     }
