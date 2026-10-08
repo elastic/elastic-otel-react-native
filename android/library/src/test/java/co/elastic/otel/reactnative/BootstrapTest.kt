@@ -152,8 +152,8 @@ class BootstrapTest {
         val apiKey = AuthenticationConfiguration.apiKey("api-key-secret").toString()
         val secretToken = AuthenticationConfiguration.secretToken("secret-token-value").toString()
 
-        assertFalse(apiKey, apiKey.contains("api-key-secret"))
-        assertFalse(secretToken, secretToken.contains("secret-token-value"))
+        assertEquals("ApiKey(key.length=14)", apiKey)
+        assertEquals("SecretToken(token.length=18)", secretToken)
     }
 
     @Test
