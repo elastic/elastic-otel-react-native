@@ -44,6 +44,11 @@ jobs:
       ORG_GRADLE_PROJECT_reactNativeArchitectures: x86_64
     steps:
       - uses: actions/checkout@v7
+      # Removes unused preinstalled toolchains; the API 36 emulator needs the space.
+      - name: Free disk space for the Android emulator
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/.ghcup
+          df -h /
       - name: npm ci
         run: npm ci
       - name: npm run validate:expo:android
@@ -59,7 +64,6 @@ jobs:
         with:
           api-level: 36
           arch: x86_64
-          disk-size: 2G
           script: npm run test:expo-launch:android
 
   expo-ios:
