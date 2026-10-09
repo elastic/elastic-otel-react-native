@@ -40,6 +40,8 @@ jobs:
 
   expo-android:
     runs-on: ubuntu-latest
+    env:
+      ORG_GRADLE_PROJECT_reactNativeArchitectures: x86_64
     steps:
       - uses: actions/checkout@v7
       - name: npm ci
