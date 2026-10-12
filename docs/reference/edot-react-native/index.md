@@ -25,8 +25,9 @@ generate their native projects with `npx expo prebuild`; see the
 - EDOT Android agent, OkHttp, and crash Gradle plugins.
 - EDOT iOS URLSession, view-controller, lifecycle, system-metric, persistence,
   session, and crash behavior through the native SDK's defaults.
-- Opt-in Babel instrumentation for standard React Native `Button.onPress` and
-  `Pressable.onPress` interactions with static widget identity.
+- Opt-in Babel instrumentation of taps on React Native's buttons, pressables,
+  and touchables, and on the app and library components you list, with widget
+  identity from props or visible text.
 - Promise-based readiness, manual named spans, severity-aware logs, and a typed
   `app.widget.click` EventRecord API.
 - Android and iOS autolinking without manual package registration.

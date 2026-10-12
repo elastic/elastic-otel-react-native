@@ -21,7 +21,10 @@
       "types": "./lib/index.d.ts",
       "default": "./src/index.ts"
     },
-    "./babel-plugin": "./babel-plugin.cjs",
+    "./babel-plugin": {
+      "types": "./babel-plugin.d.cts",
+      "default": "./babel-plugin.cjs"
+    },
     "./app.plugin.js": "./app.plugin.js",
     "./package.json": "./package.json"
   },
@@ -31,6 +34,7 @@
   "files": [
     "bin",
     "babel-plugin.cjs",
+    "babel-plugin.d.cts",
     "app.plugin.js",
     "setup-edits.cjs",
     "docs",
@@ -48,7 +52,7 @@
     "LICENSE"
   ],
   "scripts": {
-    "format:check": "prettier --check README.md package.json babel-plugin.cjs app.plugin.js setup-edits.cjs react-native.config.js src tests bin scripts docs fixture/index.ts fixture/tsconfig.json expo-fixture/index.js expo-fixture/babel.config.js expo-fixture/app.json expo-fixture/elastic-otel-config.json",
+    "format:check": "prettier --check README.md package.json babel-plugin.cjs babel-plugin.d.cts app.plugin.js setup-edits.cjs react-native.config.js src tests bin scripts docs fixture/index.ts fixture/tsconfig.json expo-fixture/index.js expo-fixture/babel.config.js expo-fixture/app.json expo-fixture/elastic-otel-config.json",
     "typecheck": "tsc --noEmit",
     "build:types": "tsc --emitDeclarationOnly",
     "prepare": "npm run build:types",

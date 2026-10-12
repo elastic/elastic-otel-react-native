@@ -25,10 +25,12 @@ description: Known limitations of EDOT React Native.
   representative application request paths.
 - Source maps, automatic navigation telemetry, arbitrary attributes, and
   metrics are not exposed by the bridge.
-- Automatic interaction events cover only standard `Button.onPress` and
-  `Pressable.onPress` imports with a static `testID`. Long presses, touchable
-  variants, gestures, navigation, dynamic widget identity, and visible-text
-  extraction are not supported.
+- Automatic interaction events match components imported by name or by
+  default, or defined in the same file. Components used as namespace members,
+  such as `<Paper.Button>`, or bound with `require` are not matched. An element
+  with a spread attribute after its handler or an id prop such as `testID` is
+  skipped.
+  Long presses are not recorded.
 - `app.widget.click` is a Development OpenTelemetry semantic convention and can
   change before stabilization.
 - Manual span and log correlation is explicit. The bridge provides no implicit
