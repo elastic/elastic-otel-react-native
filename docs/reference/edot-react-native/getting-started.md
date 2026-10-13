@@ -287,8 +287,13 @@ commands and do not add the native lines by hand.
    }
    ```
 
-4. To record taps, add the Babel plugin to `babel.config.js`; see
+4. To record taps, install `babel-preset-expo` and add the Babel plugin to
+   `babel.config.js`; see
    [Automatic instrumentation](automatic-instrumentation.md#enable-widget-tap-events):
+
+   ```sh
+   npx expo install babel-preset-expo
+   ```
 
    ```js
    module.exports = {

@@ -22,6 +22,8 @@ expo-fixture/.expo/
 ios/.build/
 ios/.swiftpm/
 build/
+.artifacts
+docs/.artifacts
 *.iml
 .idea/
 .gradle/

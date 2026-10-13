@@ -31,12 +31,6 @@ See the
 [EDOT React Native demo](https://github.com/elastic/elastic-otel-react-native-demo)
 for a guided end-to-end application and Elasticsearch verification.
 
-## Development
-
-`npm run validate` runs the full validation suite. It chains the
-`validate:js-android`, `validate:ios`, and `validate:expo` groups, and CI runs
-each group in its own job.
-
 ## License
 
 This package is licensed under the Apache License 2.0. See the `LICENSE` file.
