@@ -153,9 +153,10 @@ such as a package name or a path alias. Without `from`, the entry matches
 the name imported from any module. An entry with the same `name` and `from` as
 a default component replaces it.
 
-The plugin instruments nothing inside the declaration of a listed component,
-so a component that passes `onPress` to an inner `Pressable` records one event
-per tap.
+A component defined in the same file matches only an entry without `from`, so
+list a component defined in the app without `from`. The plugin instruments
+nothing inside the declaration of such a component, so a component that passes
+`onPress` to an inner `Pressable` records one event per tap.
 
 `click.handlers` lists the props that record a click; all of them count:
 
@@ -169,7 +170,8 @@ per tap.
 
 An element is skipped when a spread attribute, such as `{...props}`, follows
 its handler or an id prop such as `testID`, because the spread can replace
-that value.
+that value. A spread after a name prop, such as `title`, only stops the plugin
+from reading that prop.
 
 ### Report skipped elements
 

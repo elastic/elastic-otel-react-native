@@ -30,7 +30,9 @@ description: Known limitations of EDOT React Native.
   such as `<Paper.Button>`, or bound with `require` are not matched. An element
   with a spread attribute after its handler or an id prop such as `testID` is
   skipped.
-  Long presses are not recorded.
+  Long presses are not recorded by default. Listing `onLongPress` in
+  `click.handlers` records them as `app.widget.click`; there is no separate
+  long-press event.
 - `app.widget.click` is a Development OpenTelemetry semantic convention and can
   change before stabilization.
 - Manual span and log correlation is explicit. The bridge provides no implicit

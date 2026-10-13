@@ -336,6 +336,28 @@ test('instruments nothing inside a listed component declaration', () => {
   );
 });
 
+test('instruments inside a local declaration that only shares a name with an entry from a module', () => {
+  const output = transform(
+    `
+      import { Button as PaperButton } from 'react-native-paper';
+      export function Button({ onPress, ...rest }) {
+        return <PaperButton {...rest} onPress={onPress} />;
+      }
+      <Button onPress={pay}>Pay</Button>;
+    `,
+    components({
+      name: 'Button',
+      from: 'react-native-paper',
+      instrumentations: click,
+    }),
+  );
+
+  expect(wrapCalls(output)).toHaveLength(1);
+  expect(output).toContain(
+    '<PaperButton {...rest} onPress={_elasticOtelWrapPressHandler(onPress, "Button", ["Button"], [])} />',
+  );
+});
+
 test('wraps any handler expression exactly once', () => {
   const output = transform(`
     import { Pressable } from 'react-native';
@@ -396,6 +418,29 @@ test('skips an element when a spread follows the id or handler, reporting under 
     ],
     [
       '[elastic-otel-react-native] src/Screen.jsx:8 Paper.Pressable skipped: namespace members are not matched',
+    ],
+  ]);
+});
+
+test('does not read a name prop that a spread follows, reporting under debug', () => {
+  const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+  const source = `
+    import { Button } from 'react-native';
+    <>
+      <Button title="Save" {...props} onPress={a} />
+      <Button {...props} title="Send" onPress={b} />
+    </>;
+  `;
+
+  const quiet = transform(source);
+  expect(warn).not.toHaveBeenCalled();
+  expect(quiet).toContain('(a, "Button", ["Button"], [])');
+  expect(quiet).toContain('(b, "Button", ["Button"], ["Send"])');
+
+  expect(transform(source, { debug: true })).toBe(quiet);
+  expect(warn.mock.calls).toEqual([
+    [
+      '[elastic-otel-react-native] src/Screen.jsx:4 Button source title is followed by a spread attribute; not read',
     ],
   ]);
 });

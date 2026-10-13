@@ -157,8 +157,20 @@ function instrument(t, state, path, componentName, entry) {
   // The expressions the wrapper evaluates when the element renders, in source
   // order: prop values as written, the visible text, or the component name.
   // A prop value is copied only when it is side-effect-free, so the element
-  // and the wrapper read the same value from one render.
+  // and the wrapper read the same value from one render, and only when no
+  // spread follows it, so the spread cannot replace the value.
   const reportedSources = new Set();
+  const notRead = (source, reason) => {
+    if (!reportedSources.has(source)) {
+      reportedSources.add(source);
+      report(
+        state,
+        path,
+        `${componentName} source ${source} ${reason}; not read`,
+      );
+    }
+    return [];
+  };
   const candidates = (sources) =>
     sources.flatMap((source) => {
       if (source === COMPONENT_MACRO) {
@@ -170,24 +182,19 @@ function instrument(t, state, path, componentName, entry) {
           ? []
           : [t.callExpression(importedName(t, state, CONTENT_EXPORT), parts)];
       }
-      const attribute = attributes.findLast(
+      const index = attributes.findLastIndex(
         (candidate) => attributeName(candidate) === source,
       );
-      const value = attribute && propValue(attribute.node.value);
+      const value = index !== -1 && propValue(attributes[index].node.value);
       if (!value) {
         return [];
       }
+      if (index < lastSpread) {
+        return notRead(source, 'is followed by a spread attribute');
+      }
       const form = impureForm(value);
       if (form) {
-        if (!reportedSources.has(source)) {
-          reportedSources.add(source);
-          report(
-            state,
-            path,
-            `${componentName} source ${source} is ${article(form)} ${form}; not read`,
-          );
-        }
-        return [];
+        return notRead(source, `is ${article(form)} ${form}`);
       }
       return [t.cloneNode(value, true)];
     });
@@ -517,7 +524,11 @@ function validateOptions(options) {
     enabled,
     entries,
     trackedNames: trackedNames(entries),
-    declarationNames: trackedNames(listed),
+    // A component defined in the same file matches only entries without
+    // `from`, so only those entries mark a declaration as a listed component.
+    declarationNames: trackedNames(
+      entries.filter((entry) => entry.from === null),
+    ),
   };
 }
 

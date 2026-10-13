@@ -53,7 +53,13 @@ declare namespace elasticOtelReactNativeBabelPlugin {
     components?: ComponentOptions[];
   }
 
-  interface ComponentOptions {
+  /**
+   * A component entry. An enabled entry lists its instrumentations; an entry
+   * with `enabled: false` may omit them.
+   */
+  type ComponentOptions = EnabledComponentOptions | DisabledComponentOptions;
+
+  interface BaseComponentOptions {
     /**
      * The component's exported name. A default import or a component defined
      * in the same file matches by its JSX name.
@@ -64,22 +70,29 @@ declare namespace elasticOtelReactNativeBabelPlugin {
      * Without `from`, the entry matches the name from any module.
      */
     from?: string;
-    /**
-     * `false` leaves the component uninstrumented.
-     * @default true
-     */
-    enabled?: boolean;
     /** Overrides `interactions.widgetId` for this component. */
     widgetId?: WidgetSource[];
     /** Overrides `interactions.widgetName` for this component. */
     widgetName?: WidgetSource[];
+  }
+
+  interface EnabledComponentOptions extends BaseComponentOptions {
+    /** @default true */
+    enabled?: true;
     /** The instrumentations to apply to this component. */
-    instrumentations?: ComponentInstrumentations;
+    instrumentations: ComponentInstrumentations;
+  }
+
+  interface DisabledComponentOptions extends BaseComponentOptions {
+    /** `false` leaves the component uninstrumented. */
+    enabled: false;
+    /** The instrumentations to apply to this component. */
+    instrumentations?: Partial<ComponentInstrumentations>;
   }
 
   interface ComponentInstrumentations {
     /** Record an `app.widget.click` event when a handler runs. */
-    click?: ClickInstrumentation;
+    click: ClickInstrumentation;
   }
 
   interface ClickInstrumentation {

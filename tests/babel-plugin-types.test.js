@@ -19,6 +19,12 @@ export const valid: PluginOptions = {
 
 // @ts-expect-error click takes an object, not true
 export const invalid: PluginOptions = { interactions: { components: [{ name: 'A', instrumentations: { click: true } }] } };
+
+// @ts-expect-error an enabled entry lists its instrumentations
+export const noInstrumentations: PluginOptions = { interactions: { components: [{ name: 'A' }] } };
+
+// @ts-expect-error an enabled entry lists click
+export const noClick: PluginOptions = { interactions: { components: [{ name: 'A', instrumentations: {} }] } };
 `;
 
 // Type-checks a config through the package's own `./babel-plugin` export, as
