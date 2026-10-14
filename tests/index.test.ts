@@ -14,6 +14,7 @@ jest.mock('react-native', () => ({
 
 import { NativeModules } from 'react-native';
 import {
+  __widgetContent,
   __wrapPressHandler,
   emitLog,
   getStatus,
@@ -157,7 +158,12 @@ test('wrapped handlers emit fire-and-forget telemetry and preserve semantics', (
     return this.value + increment;
   }
 
-  const wrapped = __wrapPressHandler(handler, 'forecast.fetch', 'Fetch');
+  const wrapped = __wrapPressHandler(
+    handler,
+    'Pressable',
+    ['forecast.fetch'],
+    ['Fetch'],
+  );
   const result = wrapped.call(receiver, 5);
 
   expect(result).toBe(12);
@@ -173,7 +179,12 @@ test('wrapped handlers preserve throws, returned promises, and invocation count'
   mockNativeBridge.recordWidgetClick.mockRejectedValue(rejection);
   const expected = Promise.resolve('result');
   const promiseHandler = jest.fn(() => expected);
-  const wrappedPromise = __wrapPressHandler(promiseHandler, 'promise', null);
+  const wrappedPromise = __wrapPressHandler(
+    promiseHandler,
+    'Pressable',
+    ['promise'],
+    [],
+  );
 
   expect(wrappedPromise()).toBe(expected);
   expect(promiseHandler).toHaveBeenCalledTimes(1);
@@ -183,7 +194,12 @@ test('wrapped handlers preserve throws, returned promises, and invocation count'
   const throwingHandler = jest.fn(() => {
     throw handlerError;
   });
-  const wrappedThrow = __wrapPressHandler(throwingHandler, 'throw', null);
+  const wrappedThrow = __wrapPressHandler(
+    throwingHandler,
+    'Pressable',
+    ['throw'],
+    [],
+  );
   expect(() => wrappedThrow()).toThrow(handlerError);
   expect(throwingHandler).toHaveBeenCalledTimes(1);
   await Promise.resolve();
@@ -194,11 +210,148 @@ test('wrapped handlers still run when the native bridge is unavailable', () => {
   delete NativeModules.ElasticOtelReactNative;
   const handler = jest.fn((value: string) => value);
   try {
-    expect(__wrapPressHandler(handler, 'offline', null)('ok')).toBe('ok');
+    expect(
+      __wrapPressHandler(handler, 'Pressable', ['offline'], [])('ok'),
+    ).toBe('ok');
     expect(handler).toHaveBeenCalledWith('ok');
   } finally {
     NativeModules.ElasticOtelReactNative = saved;
   }
+});
+
+test('the first candidate that is a non-empty string wins', () => {
+  const wrapped = __wrapPressHandler(
+    () => {},
+    'Pressable',
+    [undefined, null, '', '  ', 7, ['id'], 'save', 'later'],
+    [false, ' Save order ', 'later'],
+  );
+  wrapped();
+
+  expect(mockNativeBridge.recordWidgetClick).toHaveBeenCalledWith(
+    'save',
+    ' Save order ',
+    expect.any(Number),
+  );
+});
+
+test('the widget id falls back to the component name and the name is omitted', () => {
+  __wrapPressHandler(() => {}, 'DemoButton', [undefined, ' '], [null, ''])();
+
+  expect(mockNativeBridge.recordWidgetClick).toHaveBeenCalledWith(
+    'DemoButton',
+    null,
+    expect.any(Number),
+  );
+});
+
+test('a non-function handler passes through unchanged', () => {
+  for (const handler of [undefined, null, 'save', { handleEvent() {} }]) {
+    expect(__wrapPressHandler(handler, 'Pressable', ['id'], [])).toBe(handler);
+  }
+});
+
+test('widget content joins strings and finite numbers with single spaces', () => {
+  expect(
+    __widgetContent(' Fetch ', 'forecast', 3, ' ', NaN, null, false, {}, [1]),
+  ).toBe('Fetch forecast 3');
+  expect(__widgetContent(undefined, Infinity, '')).toBe('');
+});
+
+test('the wrapper is stable for a stable handler and an unchanged identity', () => {
+  const handler = jest.fn();
+  const first = __wrapPressHandler(handler, 'Pressable', ['save'], ['Save']);
+  const rerendered = __wrapPressHandler(
+    handler,
+    'Pressable',
+    ['save'],
+    ['Save'],
+  );
+  const renamed = __wrapPressHandler(handler, 'Pressable', ['save'], ['Saved']);
+  const other = __wrapPressHandler(handler, 'Pressable', ['retry'], ['Retry']);
+
+  expect(rerendered).toBe(first);
+  expect(renamed).not.toBe(first);
+  expect(other).not.toBe(first);
+
+  renamed();
+  other();
+  expect(mockNativeBridge.recordWidgetClick).toHaveBeenNthCalledWith(
+    1,
+    'save',
+    'Saved',
+    expect.any(Number),
+  );
+  expect(mockNativeBridge.recordWidgetClick).toHaveBeenNthCalledWith(
+    2,
+    'retry',
+    'Retry',
+    expect.any(Number),
+  );
+  expect(handler).toHaveBeenCalledTimes(2);
+});
+
+test('elements sharing a handler and the fallback id keep their own names', () => {
+  const handler = jest.fn();
+  const save = __wrapPressHandler(handler, 'Pressable', [], ['Save']);
+  const cancel = __wrapPressHandler(handler, 'Pressable', [], ['Cancel']);
+
+  expect(cancel).not.toBe(save);
+  expect(__wrapPressHandler(handler, 'Pressable', [], ['Save'])).toBe(save);
+
+  save();
+  cancel();
+  expect(mockNativeBridge.recordWidgetClick).toHaveBeenNthCalledWith(
+    1,
+    'Pressable',
+    'Save',
+    expect.any(Number),
+  );
+  expect(mockNativeBridge.recordWidgetClick).toHaveBeenNthCalledWith(
+    2,
+    'Pressable',
+    'Cancel',
+    expect.any(Number),
+  );
+});
+
+test('a stable handler keeps a cached wrapper for each of 500 identities', () => {
+  const handler = jest.fn();
+  const ids = Array.from({ length: 500 }, (_, index) => `row-${index}`);
+  const first = ids.map((id) =>
+    __wrapPressHandler(handler, 'Pressable', [id], []),
+  );
+
+  ids.forEach((id, index) => {
+    expect(__wrapPressHandler(handler, 'Pressable', [id], [])).toBe(
+      first[index],
+    );
+  });
+});
+
+test('past 500 identities the least recently used wrapper is evicted', () => {
+  const handler = jest.fn();
+  const ids = [
+    'a',
+    ...Array.from({ length: 500 }, (_, index) => `row-${index}`),
+  ];
+  const wrap = (id: string) =>
+    __wrapPressHandler(handler, 'Pressable', [id], []);
+  const first = ids.slice(0, 500).map(wrap);
+
+  expect(wrap('a')).toBe(first[0]);
+  wrap(ids[500]);
+
+  expect(wrap('a')).toBe(first[0]);
+  const recreated = wrap(ids[1]);
+  expect(recreated).not.toBe(first[1]);
+
+  recreated();
+  expect(mockNativeBridge.recordWidgetClick).toHaveBeenCalledWith(
+    ids[1],
+    null,
+    expect.any(Number),
+  );
 });
 
 test('bridge-unavailable errors are platform-neutral', () => {

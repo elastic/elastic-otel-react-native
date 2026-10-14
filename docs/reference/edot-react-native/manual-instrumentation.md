@@ -118,7 +118,7 @@ can use the underlying native OpenTelemetry API from Android or iOS code.
 ## Record a widget click manually
 
 Prefer the [Babel plugin](automatic-instrumentation.md#enable-widget-tap-events)
-for supported standard components. For another call site with a stable widget
+for the components it instruments. For another call site with a stable widget
 identity:
 
 ```ts

@@ -127,23 +127,79 @@ export async function recordWidgetClick(
   );
 }
 
-export function __wrapPressHandler<T extends (...args: never[]) => unknown>(
+type PressHandler = (...args: never[]) => unknown;
+
+// One wrapper per handler, widget id, and widget name, so a memoized
+// component keeps a stable prop while each element records its own identity.
+// Each handler's map keeps its most recently used MAX_WRAPPERS_PER_HANDLER
+// entries, in Map insertion order.
+const pressWrappers = new WeakMap<object, Map<string, PressHandler>>();
+
+// A long-lived handler would otherwise keep one wrapper per distinct identity
+// for its whole lifetime. 500 is above the rows a default-window FlatList keeps
+// mounted, so eviction normally touches only unmounted rows.
+const MAX_WRAPPERS_PER_HANDLER = 500;
+
+function firstValue(candidates: readonly unknown[]): string | null {
+  const value = candidates.find(
+    (candidate) => typeof candidate === 'string' && candidate.trim() !== '',
+  );
+  return value === undefined ? null : (value as string);
+}
+
+/** The element's visible text: strings and finite numbers, space-joined. */
+export function __widgetContent(...parts: unknown[]): string {
+  return parts
+    .flatMap((part) => {
+      if (typeof part === 'string') {
+        const text = part.trim();
+        return text ? [text] : [];
+      }
+      return typeof part === 'number' && Number.isFinite(part)
+        ? [String(part)]
+        : [];
+    })
+    .join(' ');
+}
+
+export function __wrapPressHandler<T>(
   handler: T,
-  widgetId: string,
-  widgetName: string | null,
+  componentName: string,
+  widgetIdCandidates: readonly unknown[],
+  widgetNameCandidates: readonly unknown[],
 ): T {
   if (typeof handler !== 'function') {
     return handler;
   }
 
-  return function (this: unknown, ...args: never[]) {
-    void recordWidgetClick({
-      widgetId,
-      ...(widgetName === null ? {} : { widgetName }),
-      timestamp: Date.now(),
-    }).catch(() => {});
-    return Reflect.apply(handler, this, args);
-  } as T;
+  const widgetId = firstValue(widgetIdCandidates) ?? componentName;
+  const widgetName = firstValue(widgetNameCandidates);
+  let wrappers = pressWrappers.get(handler);
+  if (!wrappers) {
+    wrappers = new Map();
+    pressWrappers.set(handler, wrappers);
+  }
+
+  const key = JSON.stringify([widgetId, widgetName]);
+  let wrapper = wrappers.get(key);
+  if (wrapper) {
+    // Re-insert the entry to mark it as the most recently used.
+    wrappers.delete(key);
+  } else {
+    wrapper = function (this: unknown, ...args: never[]) {
+      void recordWidgetClick({
+        widgetId,
+        ...(widgetName === null ? {} : { widgetName }),
+        timestamp: Date.now(),
+      }).catch(() => {});
+      return Reflect.apply(handler, this, args);
+    };
+  }
+  wrappers.set(key, wrapper);
+  if (wrappers.size > MAX_WRAPPERS_PER_HANDLER) {
+    wrappers.delete(wrappers.keys().next().value as string);
+  }
+  return wrapper as T;
 }
 
 function widgetClickOptions(options: unknown): {
