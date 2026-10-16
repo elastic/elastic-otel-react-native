@@ -3,9 +3,8 @@
 React Native bridge for EDOT Android and EDOT iOS. Each native SDK
 owns initialization, export, buffering, sessions, sampling, automatic
 instrumentation, and native crash reporting. This package adds autolinking,
-deterministic host setup, native-first bootstrap APIs, a minimal promise bridge,
-and opt-in build-time tap instrumentation without adding a JavaScript
-OpenTelemetry SDK.
+host setup commands, native-first bootstrap APIs, a promise-based JavaScript
+API, and opt-in build-time tap instrumentation.
 
 ## Supported platforms
 

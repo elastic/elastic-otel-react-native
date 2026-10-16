@@ -1,27 +1,37 @@
 ---
 navigation_title: Automatic instrumentation
-description: Understand native and platform-neutral instrumentation in the React Native bridge.
+description: Instrument React Native applications automatically using the Elastic Distribution of OpenTelemetry React Native (EDOT React Native).
+products:
+  - id: cloud-serverless
+  - id: observability
+  - id: edot-sdk
 ---
 
-# Automatic instrumentation
+# Automatic instrumentation for React Native with EDOT SDK
 
-Native-first [bootstrap](getting-started.md#bootstrap-before-react-native)
-activates each configured EDOT SDK before React Native starts.
+EDOT React Native can generate telemetry on your behalf, so you get HTTP spans,
+crash reports, and widget tap events without writing
+[manual instrumentation](manual-instrumentation.md).
 
-Android setup applies:
+## Installation
 
-- `co.elastic.otel.android.agent`, which wires the EDOT Android agent; and
-- `co.elastic.otel.android.instrumentation.okhttp`, which instruments compatible
-  OkHttp calls and propagates W3C trace context.
+The native instrumentations start with
+[native bootstrap](getting-started.md#bootstrap-before-react-native), before
+React Native starts:
 
-EDOT iOS packages instrumentation idiomatically inside its Swift package.
-Default bootstrap retains native URLSession, view-controller, application
-lifecycle, CPU/memory system metric, persistence, session, and crash behavior.
-The bridge does not duplicate or reimplement those pipelines.
+- On Android, `setup-android` applies the `co.elastic.otel.android.agent`
+  plugin, which wires the EDOT Android agent, and the
+  `co.elastic.otel.android.instrumentation.okhttp` and
+  `co.elastic.otel.android.instrumentation.crash` plugins; see
+  [Run automated Android setup](getting-started.md#run-automated-android-setup).
+- On iOS, EDOT iOS records URLSession, view-controller, application lifecycle,
+  CPU and memory system metric, session, and crash telemetry with its default
+  configuration. See the
+  [EDOT iOS documentation](https://www.elastic.co/docs/reference/opentelemetry/edot-sdks/ios)
+  for what each one records.
 
-## Enable widget tap events
-
-Add the package plugin to `babel.config.js`:
+Widget tap events are opt-in. To record them, add the package plugin to
+`babel.config.js`:
 
 ```js
 module.exports = {
@@ -38,7 +48,11 @@ After you add the plugin or change its options, rebuild the bundle with the
 Metro cache reset, for example `npx react-native start --reset-cache` or
 `npx expo start --clear`.
 
-These are the plugin options with their effective defaults written out:
+## Configuration
+
+The native instrumentations use the EDOT Android and EDOT iOS defaults. The
+Babel plugin takes options. These are the plugin options with their effective
+defaults written out:
 
 <!-- prettier-ignore -->
 ```js
@@ -70,7 +84,28 @@ The `PluginOptions` type exported by `@elastic/otel-react-native/babel-plugin`
 describes every option. Invalid options fail the build with an error that
 names the option.
 
-### Widget id and name
+## Supported instrumentations
+
+### HTTP requests
+
+On Android, the EDOT Android OkHttp instrumentation creates spans for requests
+through compatible OkHttp clients and propagates W3C trace context. On iOS,
+EDOT iOS creates spans for URLSession requests and propagates W3C trace
+context. Requests that your app makes with React Native's `fetch` produce these
+spans on both platforms.
+
+### Crash reporting
+
+EDOT Android and EDOT iOS record crashes and export them on the next launch;
+see [Crash reporting](configuration.md#crash-reporting).
+
+### Widget tap events
+
+The Babel plugin records an `app.widget.click` event for each tap on the
+components it tracks; see [Installation](#installation) to add it and
+[Configuration](#configuration) for its options.
+
+#### Widget id and name
 
 `widgetId` and `widgetName` list where the event's `app.widget.id` and
 `app.widget.name` come from, in order; the first source with a non-empty
@@ -113,7 +148,7 @@ Set `widgetId` or `widgetName` under `interactions` to change the lists for
 every component, or on a component entry to change them for that component.
 An entry's list replaces the list under `interactions`.
 
-### Track your own and third-party components
+#### Track your own and third-party components
 
 List the components your app taps under `interactions.components`, each with
 the instrumentations to apply. `click: {}` records a click when `onPress`
@@ -153,6 +188,9 @@ such as a package name or a path alias. Without `from`, the entry matches
 the name imported from any module. An entry with the same `name` and `from` as
 a default component replaces it.
 
+Components used as namespace members, such as `<Paper.Button>`, or bound with
+`require` are not matched.
+
 A component defined in the same file matches only an entry without `from`, so
 list a component defined in the app without `from`. The plugin instruments
 nothing inside the declaration of such a component, so a component that passes
@@ -164,6 +202,10 @@ nothing inside the declaration of such a component, so a component that passes
 { name: 'MyButton', instrumentations: { click: { handlers: ['myClick'] } } }
 ```
 
+Long presses are not recorded by default. Listing `onLongPress` in
+`click.handlers` records them as `app.widget.click`; there is no separate
+long-press event.
+
 `enabled: false` on an entry turns that component off, for example
 `{ name: 'Pressable', from: 'react-native', enabled: false }`.
 `interactions.enabled: false` turns tap events off.
@@ -173,7 +215,7 @@ its handler or an id prop such as `testID`, because the spread can replace
 that value. A spread after a name prop, such as `title`, only stops the plugin
 from reading that prop.
 
-### Report skipped elements
+#### Report skipped elements
 
 Set `debug: true` to print each element the plugin skips, and each source it
 does not read, to the Metro terminal, with its file, line, component, and
@@ -187,45 +229,34 @@ reason:
 Metro caches transformed files, so reset the Metro cache to report files it
 already transformed.
 
-### What a tap records
+#### What a tap records
 
-When a wrapped handler runs, the plugin's code captures the JavaScript epoch
-timestamp, submits a fire-and-forget bridge request, contains any telemetry
-rejection, and immediately invokes the original handler. Native delay, bridge
-unavailability, or export failure cannot gate the UI. Arguments, receiver,
-synchronous return and throw behavior, returned promises, and invocation count
-are preserved.
+Recording a tap never delays or changes the tapped component's handler. The
+handler runs immediately with the same arguments, return value, and errors,
+and only once, even when telemetry is unavailable or export fails.
 
-Native code emits an OpenTelemetry event named `app.widget.click` with
-instrumentation scope `@elastic/otel-react-native.interactions`, required
-`app.widget.id`, optional `app.widget.name`, no ordinary log body, and no
-implicit span context. Both implementations set the top-level EventRecord name
-`app.widget.click`, retain it through persistence and export, and record
-`otel.event.name=app.widget.click` for export compatibility.
+The tap is recorded as an OpenTelemetry event named `app.widget.click` with
+instrumentation scope `@elastic/otel-react-native.interactions`, the required
+attribute `app.widget.id`, and the optional attribute `app.widget.name`. The
+event has no log body and no span context. On both platforms, it carries the
+EventRecord name `app.widget.click` and the attribute
+`otel.event.name=app.widget.click`.
 
-`app.widget.click` is currently a Development semantic convention and can
-change in a future OpenTelemetry release.
+`app.widget.click`, `app.widget.id`, and `app.widget.name` are Development
+OpenTelemetry semantic conventions and can change in a future OpenTelemetry
+release.
 
 To record a tap that the plugin does not instrument, call
-[`recordWidgetClick`](manual-instrumentation.md#record-a-widget-click-manually).
-If events are absent, set `debug: true`, confirm that native bootstrap
-completed, and rebuild the bundle with the Metro cache reset.
+[`recordWidgetClick`](manual-instrumentation.md#record-widget-clicks). If
+events are absent, set `debug: true`, confirm that native bootstrap completed,
+and rebuild the bundle with the Metro cache reset.
 
-## Native compatibility boundaries
+## Understanding automatic-instrumentation scope
 
-The external fixtures prove package autolinking and native application builds.
-They do not prove that every future React Native networking implementation
-produces spans.
+Automatic HTTP spans cover the requests that pass through OkHttp on Android
+and URLSession on iOS. Validate representative application requests on both
+platforms.
 
-On Android, automatic spans are limited to requests passing through an OkHttp
-client compatible with EDOT Android's OkHttp instrumentation. On iOS, URLSession
-coverage is owned by EDOT iOS. Validate representative application
-requests on both platforms.
-
-The package does not add automatic React Navigation, Redux, JavaScript fetch,
-long-press, gesture, screen-coordinate, or JavaScript exception
-instrumentation.
-
-EDOT Android crash reporting comes from its crash Gradle plugin. EDOT iOS
-crash reporting remains enabled by the native SDK default. Neither is
-implemented by the Babel plugin or the JavaScript bridge.
+EDOT React Native does not add automatic React Navigation, Redux, gesture,
+screen-coordinate, or JavaScript exception instrumentation, and does not process
+source maps.

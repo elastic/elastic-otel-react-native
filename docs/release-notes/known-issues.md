@@ -1,37 +1,28 @@
 ---
 navigation_title: Known issues
-description: Known limitations of EDOT React Native.
+description: Known issues for the Elastic Distribution of OpenTelemetry React Native (EDOT React Native).
+products:
+  - id: cloud-serverless
+  - id: observability
+  - id: edot-sdk
 ---
 
-# Known issues
+# Elastic Distribution of OpenTelemetry React Native known issues
 
-- Only bare React Native applications and Expo applications that generate
-  their native projects with the package's config plugin are supported. The
-  [tested versions](../reference/edot-react-native/getting-started.md#tested-versions)
-  list the validated combinations.
-- Android setup supports only the React Native template's Groovy
-  `buildscript` and `apply plugin` layout.
-- iOS setup supports the stock React Native Podfile and one Xcode project with
-  one application target. It adds only the configuration file reference to
-  that target. EDOT iOS requires iOS 16 or later, and React Native recommends
-  dynamic frameworks for its SwiftPM integration.
-- Android hosts must declare `minSdkVersion = 26` or higher. See [Supported configuration](../reference/edot-react-native/getting-started.md#supported-configuration).
-- EDOT Android and EDOT iOS own native crash reporting. JavaScript fatal errors,
-  rejected promises, and source maps are not intercepted by this bridge.
-- Automatic OkHttp and URLSession instrumentation must be validated with
-  representative application request paths.
-- Source maps, automatic navigation telemetry, arbitrary attributes, and
-  metrics are not exposed by the bridge.
-- Automatic interaction events match components imported by name or by
-  default, or defined in the same file. Components used as namespace members,
-  such as `<Paper.Button>`, or bound with `require` are not matched. An element
-  with a spread attribute after its handler or an id prop such as `testID` is
-  skipped.
-  Long presses are not recorded by default. Listing `onLongPress` in
-  `click.handlers` records them as `app.widget.click`; there is no separate
-  long-press event.
-- `app.widget.click` is a Development OpenTelemetry semantic convention and can
-  change before stabilization.
-- Manual span and log correlation is explicit. The bridge provides no implicit
-  active JavaScript context, and opaque handles cannot be used after their span
-  ends.
+Known issues are significant defects or limitations that may impact your implementation. These issues are actively being worked on and will be addressed in a future release. Review known issues to help you make informed decisions, such as upgrading to a new version.
+
+% Use the following template to add entries to this page.
+
+% :::{dropdown} Title of known issue
+% **Details**
+% On [Month/Day/Year], a known issue was discovered that [description of known issue].
+
+% **Workaround**
+% Workaround description.
+
+% **Resolved**
+% On [Month/Day/Year], this issue was resolved.
+
+% :::
+
+_No known issues_
