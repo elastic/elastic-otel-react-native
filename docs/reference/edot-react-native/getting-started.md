@@ -1,17 +1,38 @@
 ---
 navigation_title: Get started
-description: Install the EDOT React Native package in a supported bare React Native or Expo application.
+description: Set up the Elastic Distribution of OpenTelemetry React Native (EDOT React Native) to send data to Elastic.
+products:
+  - id: cloud-serverless
+  - id: observability
+  - id: edot-sdk
 ---
 
 # Get started with EDOT React Native
 
-This guide installs `@elastic/otel-react-native` in a bare React Native
-application. For an Expo application, see
+Set up the Elastic Distribution of OpenTelemetry React Native (EDOT React
+Native) in your bare React Native application and explore your app's data in
+Kibana. For an Expo application, see
 [Set up an Expo app](#set-up-an-expo-app).
 
-## Tested versions
+## Requirements
 
-This table is the canonical record of tested versions.
+| Requirement            | Minimum version |
+| ---------------------- | --------------- |
+| React Native           | 0.80            |
+| Android API level      | 26              |
+| Android compile SDK    | 36              |
+| iOS                    | 16              |
+| Expo SDK, in Expo apps | 57              |
+
+The build enforces these minimums. An Android app with a lower
+`minSdkVersion` fails to build with a manifest merger error; EDOT React Native
+does not support lower API levels through desugaring. Newer versions are
+expected to work.
+
+You also need an OTLP endpoint to send telemetry to; see
+[Export connectivity](configuration.md#export-connectivity).
+
+### Tested versions
 
 | Component             | Tested version                              |
 | --------------------- | ------------------------------------------- |
@@ -31,41 +52,8 @@ This table is the canonical record of tested versions.
 | Expo SDK              | 57 (`expo` 57.0.27, `@expo/cli` 57.0.28)    |
 | React Native for Expo | 0.86.3                                      |
 
-Stock React Native applications from 0.80 on also build with this package.
-React Native 0.80.3, 0.81.6, 0.83.10, 0.85.3, and 0.86.0 build a release APK
-at API 26. React Native 0.80 also needs compile SDK 36. The 0.86.0 APK starts
-on an API 26 emulator. The iOS app builds on React Native 0.83.10 and 0.85.3.
-On React Native 0.80 and 0.81, Xcode 27 fails in React Native's own `fmt` pod,
-with or without this package.
-
-The package brings in the EDOT iOS release listed above when you install pods,
-so you do not add EDOT iOS to the project yourself.
-
-## Supported configuration
-
-EDOT React Native is the supported way to use EDOT Android from React Native.
-
-This package uses the EDOT Android release listed in
-[Tested versions](#tested-versions). The Android host must meet these floors:
-
-- `minSdkVersion = 26` or higher. The bridge offers no desugaring path for
-  lower API levels.
-- A compile SDK of 36 or higher, which EDOT Android declares in its library
-  metadata.
-- React Native 0.80 or newer. React Native 0.79's Gradle plugin compiles with
-  Kotlin 2.0, which cannot read EDOT Android's Kotlin 2.2 metadata.
-
-The build enforces these floors. An untouched React Native 0.87.1 template
-declares `minSdkVersion = 24`. With this package and the EDOT Android agent,
-OkHttp, and crash plugins added, `./gradlew :app:assembleRelease` fails:
-
-```text
-Manifest merger failed : uses-sdk:minSdkVersion 24 cannot be smaller than
-version 26 declared in library [:elastic_otel-react-native]
-```
-
-After changing only `minSdkVersion` to 26, the same release build succeeds. The
-setup commands do not check or edit host tool versions.
+The package brings in the EDOT Android and EDOT iOS releases listed here, so
+you do not add either SDK to your project yourself.
 
 ## Install the package
 
@@ -85,8 +73,8 @@ npx elastic-otel-react-native setup-android
 
 With Yarn, pnpm, or Bun, use `yarn`, `pnpm exec`, or `bunx` in place of `npx`.
 
-The command supports the React Native template's Groovy layout and edits two
-files:
+The command supports the React Native template's Groovy `buildscript` and
+`apply plugin` layout and edits two files:
 
 - In `android/build.gradle`, it adds `gradlePluginPortal()` after
   `mavenCentral()` in the `buildscript` repositories, because the EDOT Android
@@ -138,12 +126,11 @@ review the change with `git diff`.
 The command never edits `AppDelegate`, the Podfile, credentials, endpoints,
 bundle identifiers, signing settings, or other Xcode project content.
 
-EDOT iOS needs two more manual steps:
+Complete two more steps by hand:
 
 - Set the Podfile platform and every application deployment target in Xcode
-  to iOS 16 or later. EDOT iOS declares iOS 16. Below that, Xcode stops
-  with `compiling for iOS 15.1, but module 'ElasticOtelReactNative' has a
-minimum deployment target of iOS 16.0`.
+  to iOS 16 or later. Below that, Xcode stops with
+  `compiling for iOS 15.1, but module 'ElasticOtelReactNative' has a minimum deployment target of iOS 16.0`.
 - Install pods with dynamic frameworks:
 
   ```sh
@@ -152,101 +139,9 @@ minimum deployment target of iOS 16.0`.
   cd ..
   ```
 
-  You can set `ENV['USE_FRAMEWORKS'] = 'dynamic'` in the Podfile instead. The
-  setup leaves React Native's choice between prebuilt and source-built core
-  pods unchanged.
-
-## Manual host setup fallback
-
-For Android, add `gradlePluginPortal()` and the three EDOT Android `classpath`
-lines to the root `buildscript` block in `android/build.gradle`. Keep the
-version expression as shown; it reads the EDOT Android version from the
-installed package:
-
-```groovy
-buildscript {
-    repositories {
-        google()
-        mavenCentral()
-        gradlePluginPortal()
-    }
-    dependencies {
-        classpath("com.android.tools.build:gradle")
-        classpath("co.elastic.otel.android:agent-plugin:${findProject(':elastic_otel-react-native').properties['edotAndroidVersion']}")
-        classpath("co.elastic.otel.android.instrumentation:okhttp-plugin:${findProject(':elastic_otel-react-native').properties['edotAndroidVersion']}")
-        classpath("co.elastic.otel.android.instrumentation:crash-plugin:${findProject(':elastic_otel-react-native').properties['edotAndroidVersion']}")
-        classpath("com.facebook.react:react-native-gradle-plugin")
-        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin")
-    }
-}
-```
-
-Apply all three plugins and the configuration Gradle script in
-`android/app/build.gradle`:
-
-```groovy
-apply plugin: "co.elastic.otel.android.agent"
-apply plugin: "co.elastic.otel.android.instrumentation.okhttp"
-apply plugin: "co.elastic.otel.android.instrumentation.crash"
-apply from: "../../node_modules/@elastic/otel-react-native/android/elastic-otel-config.gradle"
-```
-
-For iOS, add `elastic-otel-config.json` from the project root to the app
-target in Xcode as a reference, without copying it into the `ios` directory.
-Check that the file is listed in the target's Copy Bundle Resources build
-phase. Then follow the two manual steps in [Set up iOS](#set-up-ios). Do not
-add EDOT iOS to the project yourself; the package brings it in.
-
-## Bootstrap before React Native
-
-Create `elastic-otel-config.json` at the project root, next to
-`package.json`. One file configures both platforms;
-[Configuration file](configuration.md#configuration-file) shows an example
-and lists every key.
-
-In `MainApplication.kt`, initialize after `super.onCreate()` and before
-`loadReactNative(this)`:
-
-```kotlin
-import co.elastic.otel.reactnative.ElasticOtelReactNative
-
-override fun onCreate() {
-    super.onCreate()
-    ElasticOtelReactNative.initialize(this)
-    loadReactNative(this)
-}
-```
-
-In iOS `AppDelegate.swift`, import the autolinked module and initialize at the
-start of `application(_:didFinishLaunchingWithOptions:)`, before creating or
-starting the React Native factory:
-
-```swift
-import ElasticOtelReactNative
-
-do {
-  try ElasticOtelReactNative.initialize()
-} catch {
-  fatalError("EDOT iOS bootstrap failed: \(error)")
-}
-```
-
-Both calls read `elastic-otel-config.json`. For what happens when it is
-missing or invalid, see
-[Initialization and errors](configuration.md#initialization-and-errors). To
-build the configuration in code instead, see
-[Configure in code](configuration.md#configure-in-code).
-
-The setup commands deliberately do not write bootstrap code or the
-configuration file because configuration and credentials belong to the
-application. React Native
-autolinking registers the bridge on both platforms; do not register it
-manually.
-
-If telemetry does not appear, use the EDOT Android
-[troubleshooting guide](docs-content://troubleshoot/ingest/opentelemetry/edot-sdks/android/index.md)
-or the EDOT iOS
-[troubleshooting guide](docs-content://troubleshoot/ingest/opentelemetry/edot-sdks/ios/index.md).
+  You can set `ENV['USE_FRAMEWORKS'] = 'dynamic'` in the Podfile in place of
+  the environment variable. The setup leaves React Native's choice between
+  prebuilt and source-built core pods unchanged.
 
 ## Set up an Expo app
 
@@ -289,7 +184,7 @@ commands and do not add the native lines by hand.
 
 4. To record taps, install `babel-preset-expo` and add the Babel plugin to
    `babel.config.js`; see
-   [Automatic instrumentation](automatic-instrumentation.md#enable-widget-tap-events):
+   [Widget tap events](automatic-instrumentation.md#widget-tap-events):
 
    ```sh
    npx expo install babel-preset-expo
@@ -317,6 +212,197 @@ To remove the package from an Expo app, remove it from `expo.plugins`,
 remove the `@elastic/otel-react-native/babel-plugin` entry from
 `babel.config.js` if you added it, uninstall the package, and run
 `npx expo prebuild --clean`.
+
+## Manual host setup fallback
+
+For Android, add `gradlePluginPortal()` and the three EDOT Android `classpath`
+lines to the root `buildscript` block in `android/build.gradle`. Keep the
+version expression as shown; it reads the EDOT Android version from the
+installed package:
+
+```groovy
+buildscript {
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
+    dependencies {
+        classpath("com.android.tools.build:gradle")
+        classpath("co.elastic.otel.android:agent-plugin:${findProject(':elastic_otel-react-native').properties['edotAndroidVersion']}")
+        classpath("co.elastic.otel.android.instrumentation:okhttp-plugin:${findProject(':elastic_otel-react-native').properties['edotAndroidVersion']}")
+        classpath("co.elastic.otel.android.instrumentation:crash-plugin:${findProject(':elastic_otel-react-native').properties['edotAndroidVersion']}")
+        classpath("com.facebook.react:react-native-gradle-plugin")
+        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin")
+    }
+}
+```
+
+Apply all three plugins and the configuration Gradle script in
+`android/app/build.gradle`:
+
+```groovy
+apply plugin: "co.elastic.otel.android.agent"
+apply plugin: "co.elastic.otel.android.instrumentation.okhttp"
+apply plugin: "co.elastic.otel.android.instrumentation.crash"
+apply from: "../../node_modules/@elastic/otel-react-native/android/elastic-otel-config.gradle"
+```
+
+For iOS, add `elastic-otel-config.json` from the project root to the app
+target in Xcode as a reference, without copying it into the `ios` directory.
+Check that the file is listed in the target's Copy Bundle Resources build
+phase. Then complete the two manual steps in [Set up iOS](#set-up-ios).
+
+## Bootstrap before React Native
+
+Create `elastic-otel-config.json` at the project root, next to
+`package.json`. One file configures both platforms;
+[Configuration file](configuration.md#configuration-file) shows an example
+and lists every key.
+
+In `MainApplication.kt`, initialize after `super.onCreate()` and before
+`loadReactNative(this)`:
+
+```kotlin
+import co.elastic.otel.reactnative.ElasticOtelReactNative
+
+override fun onCreate() {
+    super.onCreate()
+    ElasticOtelReactNative.initialize(this)
+    loadReactNative(this)
+}
+```
+
+In iOS `AppDelegate.swift`, import the autolinked module and initialize at the
+start of `application(_:didFinishLaunchingWithOptions:)`, before creating or
+starting the React Native factory:
+
+```swift
+import ElasticOtelReactNative
+
+do {
+  try ElasticOtelReactNative.initialize()
+} catch {
+  fatalError("EDOT iOS bootstrap failed: \(error)")
+}
+```
+
+Both calls read `elastic-otel-config.json`. For what happens when it is
+missing or invalid, see
+[Initialization and errors](configuration.md#initialization-and-errors). To
+build the configuration in code, see
+[Configure in code](configuration.md#configure-in-code).
+
+The setup commands do not write bootstrap code or the configuration file,
+because configuration and credentials belong to your application. React Native
+autolinking registers the package on both platforms; do not register it
+manually.
+
+## Start sending telemetry
+
+With EDOT React Native initialized, your app sends telemetry to the OTLP
+endpoint in your configuration.
+
+### Generate telemetry
+
+The following snippet creates a span with a correlated log through
+[manual instrumentation](manual-instrumentation.md):
+
+```ts
+import { emitLog, endSpan, startSpan } from '@elastic/otel-react-native';
+
+const span = await startSpan('My span'); // <1>
+try {
+  await emitLog('Inside my span', 'info', { spanHandle: span }); // <2>
+} finally {
+  await endSpan(span);
+}
+```
+
+1. Starts a span that measures the work until `endSpan` is called.
+2. Emits a log that carries the span's trace and span IDs, so Kibana shows the
+   log with the span.
+
+### Visualize telemetry
+
+EDOT React Native sends telemetry through EDOT Android on Android and EDOT iOS
+on iOS, so each platform's data appears in that platform's Kibana dashboards.
+The [Android OpenTelemetry Assets](integration-docs://reference/otel_android_dashboards.md)
+and [iOS OpenTelemetry Assets](integration-docs://reference/otel_ios_dashboards.md)
+integrations provide these dashboards. They give an overview of application
+health and dedicated views for spans, crashes, sessions, and other mobile
+telemetry.
+
+After your app has sent telemetry data, either
+[manually](manual-instrumentation.md) or
+[automatically](automatic-instrumentation.md), install the content package for
+each platform your app runs on.
+
+#### Install the content packages
+
+1. In Kibana, search for **Android OpenTelemetry Assets** in the
+   [global search field](docs-content://explore-analyze/find-and-organize/find-apps-and-objects.md)
+   for an Android app, or for **iOS OpenTelemetry Assets** for an iOS app.
+2. Open it and click **Install** to add its dashboards to your Kibana
+   instance. Repeat for the other platform if your app runs on both.
+
+#### Explore your data in the dashboard
+
+Once a content package is installed, open its Application Overview dashboard:
+
+1. In Kibana, search for **Dashboards** in the
+   [global search field](docs-content://explore-analyze/find-and-organize/find-apps-and-objects.md).
+2. Open **[Android OTel] Application Overview** for Android data or
+   **[iOS OTel] Application Overview** for iOS data.
+3. Select your application by clicking its name in the **Applications** table
+   of the **Overview** section.
+
+The Android dashboard:
+
+:::{image} images/span-visualization/android-application-overview-dashboard.png
+:alt: Android Application Overview dashboard
+:screenshot:
+:::
+
+The iOS dashboard:
+
+:::{image} images/span-visualization/ios-application-overview-dashboard.png
+:alt: iOS Application Overview dashboard
+:screenshot:
+:::
+
+Each dashboard provides a high-level view of your app's health, including span
+performance, crash analysis, and session-level insights.
+
+To inspect individual traces in detail, go to a dashboard panel that lists
+spans and click its **Explore in Discover** button. In Discover, expand the
+details of a span to open the trace waterfall, which shows the full span
+hierarchy and timing.
+
+#### Learn more
+
+- View crash details for
+  [Android](integration-docs://reference/otel_android_dashboards.md#viewing-details-from-a-crash)
+  and [iOS](integration-docs://reference/otel_ios_dashboards.md#viewing-details-from-a-crash)
+  apps in the dashboards.
+- Troubleshoot dashboard issues for
+  [Android](integration-docs://reference/otel_android_dashboards.md#troubleshooting)
+  and [iOS](integration-docs://reference/otel_ios_dashboards.md#troubleshooting).
+
+## What's next?
+
+- This guide uses the minimum configuration needed to initialize EDOT React
+  Native. To explore what else you can set, see
+  [Configuration](configuration.md).
+- EDOT React Native also creates telemetry without code, such as HTTP spans,
+  crash reports, and widget tap events. See
+  [Automatic instrumentation](automatic-instrumentation.md).
+- To create your own spans, logs, and widget click events, see
+  [Manual instrumentation](manual-instrumentation.md).
+- If telemetry does not appear, use the EDOT Android
+  [troubleshooting guide](docs-content://troubleshoot/ingest/opentelemetry/edot-sdks/android/index.md)
+  or the EDOT iOS
+  [troubleshooting guide](docs-content://troubleshoot/ingest/opentelemetry/edot-sdks/ios/index.md).
 
 ## Remove the package
 

@@ -59,6 +59,26 @@ function slug(heading) {
     .replace(/\s+/g, '-');
 }
 
+// Returns the body of the section that starts at the exact heading line, up to
+// the next heading of the same or a higher level.
+function section(markdown, heading) {
+  const level = heading.match(/^#+/)[0].length;
+  const lines = markdown.split(/\r?\n/);
+  const start = lines.indexOf(heading);
+  if (start === -1) {
+    throw new Error(
+      `The getting-started guide is missing the heading "${heading}".`,
+    );
+  }
+  const end = lines.findIndex(
+    (line, index) =>
+      index > start &&
+      /^#{1,6}\s/.test(line) &&
+      line.match(/^#+/)[0].length <= level,
+  );
+  return lines.slice(start + 1, end === -1 ? undefined : end).join('\n');
+}
+
 function headings(markdown) {
   return new Set(
     markdown
@@ -86,13 +106,14 @@ for (const page of [
     throw new Error(`Reference navigation is missing ${page}.`);
   }
 }
-for (const platform of ['android', 'ios']) {
-  const troubleshootingCrosslink = `crosslink: docs-content://troubleshoot/ingest/opentelemetry/edot-sdks/${platform}/index.md`;
-  if (!referenceToc.includes(troubleshootingCrosslink)) {
-    throw new Error(
-      `Reference navigation is missing the EDOT ${platform} troubleshooting crosslink.`,
-    );
-  }
+if (
+  !referenceToc.includes(
+    'crosslink: docs-content://troubleshoot/ingest/opentelemetry/edot-sdks/index.md',
+  )
+) {
+  throw new Error(
+    'Reference navigation is missing the EDOT SDKs troubleshooting crosslink.',
+  );
 }
 
 const releaseToc = await load('docs/release-notes/toc.yml');
@@ -149,6 +170,29 @@ for (const staleExample of ['import { crash }', 'await crash()']) {
 const gettingStarted = markdownCache.get(
   'docs/reference/edot-react-native/getting-started.md',
 );
+for (const heading of [
+  '## Requirements',
+  '### Tested versions',
+  '## Set up an Expo app',
+  '## Manual host setup fallback',
+  '## Bootstrap before React Native',
+  '## Start sending telemetry',
+  '### Visualize telemetry',
+]) {
+  section(gettingStarted, heading);
+}
+for (const packageLink of [
+  'integration-docs://reference/otel_android_dashboards.md',
+  'integration-docs://reference/otel_ios_dashboards.md',
+]) {
+  if (
+    !section(gettingStarted, '### Visualize telemetry').includes(packageLink)
+  ) {
+    throw new Error(
+      `The getting-started Visualize telemetry section is missing ${packageLink}.`,
+    );
+  }
+}
 for (const expectedCommand of [
   'npx elastic-otel-react-native setup-android',
   'npx elastic-otel-react-native setup-ios',
@@ -158,7 +202,7 @@ for (const expectedCommand of [
   }
 }
 const testedVersionRows = new Map(
-  gettingStarted
+  section(gettingStarted, '### Tested versions')
     .split(/\r?\n/)
     .filter((line) => line.startsWith('|'))
     .map((line) =>
@@ -208,20 +252,13 @@ for (const [component, version] of [
   ['React Native for Expo', expoFixture.dependencies['react-native']],
 ]) {
   if (testedVersionRows.get(component) !== version) {
-    throw new Error(
-      `The canonical tested-version table is missing ${component}.`,
-    );
+    throw new Error(`The tested-version table is missing ${component}.`);
   }
 }
 
-if (!gettingStarted.includes('\n## Set up an Expo app\n')) {
-  throw new Error('The getting-started guide is missing the Expo section.');
-}
 // The Expo section's app.json example must list the same plugins and build
 // properties as the Expo fixture, whose build proves them.
-const expoSection = gettingStarted
-  .split('\n## Set up an Expo app\n')[1]
-  .split('\n## ')[0];
+const expoSection = section(gettingStarted, '## Set up an Expo app');
 const expoJsonBlocks = [...expoSection.matchAll(/```json\n([\s\S]*?)```/g)];
 if (expoJsonBlocks.length !== 1) {
   throw new Error(
@@ -242,10 +279,7 @@ if (
   );
 }
 
-const manualFallback = gettingStarted.slice(
-  gettingStarted.indexOf('## Manual host setup fallback'),
-  gettingStarted.indexOf('## Bootstrap before React Native'),
-);
+const manualFallback = section(gettingStarted, '## Manual host setup fallback');
 for (const line of [
   PLUGIN_PORTAL_LINE,
   ...CLASSPATH_LINES,

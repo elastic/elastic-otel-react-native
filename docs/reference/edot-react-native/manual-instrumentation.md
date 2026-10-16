@@ -1,17 +1,31 @@
 ---
 navigation_title: Manual instrumentation
-description: Create related spans and correlate logs through the cross-platform React Native bridge.
+description: Learn how to manually instrument React Native applications using the Elastic Distribution of OpenTelemetry React Native (EDOT React Native) to create spans, correlate logs, and record widget clicks.
+products:
+  - id: cloud-serverless
+  - id: observability
+  - id: edot-sdk
 ---
 
-# Manual instrumentation
+# Manual instrumentation using the Elastic Distribution of OpenTelemetry React Native
 
-The JavaScript surface is identical on Android and iOS. It exposes readiness,
-named span start/end, severity-aware logs, and a narrow widget-click EventRecord
-API. All calls return promises. Spans and logs created through this API use the
-instrumentation scope `@elastic/otel-react-native`; widget-click events use
-`@elastic/otel-react-native.interactions`.
+Learn how to manually instrument React Native applications with EDOT React
+Native to create spans, correlate logs, and record widget clicks from
+JavaScript.
 
-## Check readiness
+## OpenTelemetry APIs
+
+The JavaScript API of `@elastic/otel-react-native` is identical on Android and
+iOS. It exposes readiness, named span start and end, logs with a severity, and
+widget click events. All calls return promises. Spans and logs created through
+this API use the instrumentation scope `@elastic/otel-react-native`; widget
+click events use `@elastic/otel-react-native.interactions`.
+
+Each call creates real OpenTelemetry spans and logs in EDOT Android or EDOT
+iOS, which export them with the rest of your app's telemetry.
+
+Check that native bootstrap has completed before you rely on manual
+telemetry:
 
 ```ts
 import { getStatus } from '@elastic/otel-react-native';
@@ -22,7 +36,14 @@ if (!status.ready) {
 }
 ```
 
-## Create a root span
+The asynchronous API does not implement the synchronous OpenTelemetry
+JavaScript tracing interfaces, and it does not create metrics or set custom
+span and log attributes. For those, use the OpenTelemetry API of EDOT Android
+or EDOT iOS from Android or iOS code.
+
+## Create spans
+
+### Create a root span
 
 ```ts
 import { endSpan, startSpan } from '@elastic/otel-react-native';
@@ -37,7 +58,7 @@ try {
 
 Span names must not be blank.
 
-## Create parent and child spans
+### Create parent and child spans
 
 Pass an active parent handle when creating the child:
 
@@ -57,13 +78,12 @@ try {
 }
 ```
 
-Each native SDK creates real OpenTelemetry spans. The exported child shares the
-parent's `traceId` and records the parent's `spanId` in the standard parent
-field. No package-defined correlation attribute is added. A child remains
-valid if it ends after its parent, but the parent handle must still be active
-when `startSpan` is called.
+The exported child shares the parent's `traceId` and records the parent's
+`spanId` in the standard parent field. No package-defined correlation
+attribute is added. A child is valid if it ends after its parent, but the
+parent handle must be active when `startSpan` is called.
 
-## Emit logs
+## Create logs
 
 ```ts
 import { emitLog } from '@elastic/otel-react-native';
@@ -75,7 +95,7 @@ await emitLog('payment declined', 'warn');
 Supported severities are `trace`, `debug`, `info`, `warn`, `error`, and `fatal`.
 The default is `info`. Log bodies must not be blank.
 
-Pass an active span handle only when the log should carry that span's native
+Pass an active span handle only when the log should carry that span's
 OpenTelemetry context:
 
 ```ts
@@ -90,34 +110,9 @@ try {
 The correlated log carries the selected span's standard `traceId` and `spanId`.
 Omitting `spanHandle` emits an independent log without valid span context.
 
-## Handle lifecycle and errors
+## Record widget clicks
 
-The value returned by `startSpan` is a monotonic opaque bridge handle. It is not
-an OpenTelemetry `traceId` or `spanId`, and applications must not persist,
-parse, compare, or derive telemetry identity from it. A handle remains active
-until one successful `endSpan` call.
-
-For which calls reject and what a rejected call creates, see
-[Initialization and errors](configuration.md#initialization-and-errors). If
-child creation or log emission races `endSpan`, native synchronization gives
-one of two outcomes: context use completes before the span ends, or the
-operation rejects after the handle has ended. Calls never fall back to another
-span.
-
-The bridge sets native OpenTelemetry parent or log context directly. It does
-not keep a thread-bound active JavaScript scope, so correlation does not depend
-on which thread serves a bridge call.
-
-Spans and logs go through each native SDK's own OpenTelemetry pipeline; the
-bridge creates no second pipeline.
-
-The asynchronous bridge does not implement the synchronous OpenTelemetry
-JavaScript tracing interfaces. Applications needing the full upstream surface
-can use the underlying native OpenTelemetry API from Android or iOS code.
-
-## Record a widget click manually
-
-Prefer the [Babel plugin](automatic-instrumentation.md#enable-widget-tap-events)
+Prefer the [Babel plugin](automatic-instrumentation.md#widget-tap-events)
 for the components it instruments. For another call site with a stable widget
 identity:
 
@@ -135,10 +130,23 @@ await recordWidgetClick({
 present. `timestamp` is a finite epoch millisecond value captured when the
 interaction occurs.
 
-The result is an OpenTelemetry event named `app.widget.click`, using
-scope `@elastic/otel-react-native.interactions`, required `app.widget.id`, and
-optional `app.widget.name`. It has no log body or implicit span context. EDOT
-Android and EDOT iOS both set the top-level EventRecord name `app.widget.click`
-and emit the standard compatibility attribute
-`otel.event.name=app.widget.click`. The semantic convention is currently
-Development.
+The call records the same `app.widget.click` event as the Babel plugin; see
+[What a tap records](automatic-instrumentation.md#what-a-tap-records) for its
+attributes and semantic convention status.
+
+## Lifecycle and errors
+
+The value returned by `startSpan` is an opaque handle. It is not an
+OpenTelemetry `traceId` or `spanId`, and applications must not persist, parse,
+compare, or derive telemetry identity from it. A handle is active until one
+successful `endSpan` call, and it cannot be used after its span ends.
+
+Correlation is explicit: there is no implicit active JavaScript context, so a
+child span or a correlated log uses the handle you pass, whichever thread
+serves the call.
+
+For which calls reject and what a rejected call creates, see
+[Initialization and errors](configuration.md#initialization-and-errors). If
+child creation or log emission races `endSpan`, one of two outcomes happens:
+the context use completes before the span ends, or the operation rejects after
+the handle has ended. Calls never fall back to another span.

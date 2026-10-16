@@ -3,6 +3,7 @@ products:
   - id: edot-sdk
 cross_links:
   - docs-content
+  - integration-docs
 toc:
   - toc: release-notes
   - toc: reference/edot-react-native

@@ -1,16 +1,25 @@
 ---
 navigation_title: Configuration
-description: Configure native-first EDOT Android and EDOT iOS initialization for React Native.
+description: Configuration options for the Elastic Distribution of OpenTelemetry React Native (EDOT React Native).
+products:
+  - id: cloud-serverless
+  - id: observability
+  - id: edot-sdk
 ---
 
-# Configure EDOT React Native
+# Configure the EDOT React Native SDK
 
-On Android and iOS, the bridge reads its configuration from one file,
+This page lists the settings available for EDOT React Native, how your app
+supplies them at initialization, and how initialization reports errors.
+
+## Initialization configuration
+
+On Android and iOS, EDOT React Native reads its configuration from one file,
 `elastic-otel-config.json`, at the React Native project root. A host that
 builds its configuration in code can pass a native `BootstrapConfiguration`
-instead; see [Configure in code](#configure-in-code).
+in place of the file; see [Configure in code](#configure-in-code).
 
-## Configuration file
+### Configuration file
 
 Create `elastic-otel-config.json` next to `package.json`, `metro.config.js`,
 and `babel.config.js`:
@@ -32,17 +41,17 @@ and `babel.config.js`:
 ```
 
 The `$schema` line points your editor at the JSON schema shipped in the
-package, which gives completion and validation while you edit. The bridge
-ignores it.
+package, which gives completion and validation while you edit. EDOT React
+Native ignores it.
 
-| Key                  | Type                    | Required                 | Default           | Sets                                                    |
-| -------------------- | ----------------------- | ------------------------ | ----------------- | ------------------------------------------------------- |
-| `$schema`            | string                  | no                       |                   | Nothing. Editors use it; the bridge ignores it.         |
-| `exportUrl`          | string                  | yes                      |                   | The OTLP base URL. See [OTLP base URL](#otlp-base-url). |
-| `apiKey`             | string                  | no                       | no authentication | The API key sent with each export request.              |
-| `exportProtocol`     | `"http"` or `"grpc"`    | no                       | `"http"`          | The OTLP transport.                                     |
-| `sessionSampleRate`  | number from 0 to 1      | no                       | `1`               | The fraction of sessions that are recorded.             |
-| `resourceAttributes` | object of string values | yes, with `service.name` |                   | One resource attribute for each entry.                  |
+| Key                  | Type                    | Required                 | Default           | Sets                                                                |
+| -------------------- | ----------------------- | ------------------------ | ----------------- | ------------------------------------------------------------------- |
+| `$schema`            | string                  | no                       |                   | Nothing. Editors use it; EDOT React Native ignores it.              |
+| `exportUrl`          | string                  | yes                      |                   | The OTLP base URL. See [Export connectivity](#export-connectivity). |
+| `apiKey`             | string                  | no                       | no authentication | The API key sent with each export request.                          |
+| `exportProtocol`     | `"http"` or `"grpc"`    | no                       | `"http"`          | The OTLP transport.                                                 |
+| `sessionSampleRate`  | number from 0 to 1      | no                       | `1`               | The fraction of sessions that are recorded.                         |
+| `resourceAttributes` | object of string values | yes, with `service.name` |                   | One resource attribute for each entry.                              |
 
 Use OpenTelemetry semantic convention keys in `resourceAttributes`.
 `service.name` is required. `service.version` defaults to the application
@@ -52,10 +61,10 @@ version. Set `deployment.environment.name` and other attributes, such as
 The file accepts only the keys in this table. An unknown key, such as a
 misspelled `apikey`, is rejected rather than ignored, so a typo cannot silently
 drop a setting. String values must not be blank, except `$schema`, which only
-needs to be a string. Write each key once: the bridge does not report a
-repeated key and uses only one of its values.
+needs to be a string. Write each key once: a repeated key is not reported, and
+only one of its values is used.
 
-### How the file reaches the app
+#### How the file reaches the app
 
 On Android, `setup-android` applies the package's `elastic-otel-config.gradle`
 script in `android/app/build.gradle`. At build time the script copies
@@ -75,7 +84,7 @@ and starts EDOT iOS before React Native starts.
 Rebuild the app after you change the file. For what happens when the file is
 missing or invalid, see [Initialization and errors](#initialization-and-errors).
 
-### API keys in the app
+#### API keys in the app
 
 An API key in this file is compiled into the app, like every telemetry
 credential that ships in a mobile app, and can be extracted from the binary.
@@ -83,10 +92,10 @@ Use an API key that only grants telemetry ingestion, and rotate it like any
 other client credential. If the file holds an API key, keep it out of public
 repositories.
 
-## Configure in code
+### Configure in code
 
 A host that builds its configuration in code can call the
-`BootstrapConfiguration` overload instead of reading the file. This form also
+`BootstrapConfiguration` overload in place of reading the file. This form also
 accepts a secret token through `AuthenticationConfiguration.secretToken`. On
 Android:
 
@@ -134,7 +143,7 @@ do {
 Use one form. The file and the code are never merged, and calling both forms
 throws; see [Initialization and errors](#initialization-and-errors).
 
-## OTLP base URL
+### Export connectivity
 
 `exportUrl` is required. Supply the base URL of either:
 
@@ -146,7 +155,12 @@ throws; see [Initialization and errors](#initialization-and-errors).
 The URL must use `http` or `https`, include a host, and contain no query,
 fragment, or signal-specific suffix such as `/v1/traces`. A gateway prefix such
 as `https://gateway.example/tenant/otel` is valid. The native SDK appends signal
-paths to the supplied base URL. The URL scheme selects connection security.
+paths to the supplied base URL. The URL scheme selects TLS or plaintext
+transport.
+
+OTLP/HTTP is the default transport. Select `"exportProtocol": "grpc"`, Android
+`Transport.GRPC`, or iOS `.grpc` only when the chosen endpoint accepts
+OTLP/gRPC.
 
 For an Android emulator reaching a local OTLP/HTTP endpoint on the host, use
 `http://10.0.2.2:4318`. For the iOS simulator, use
@@ -155,7 +169,7 @@ For an Android emulator reaching a local OTLP/HTTP endpoint on the host, use
 emulator reaches the host; the reverse lasts until the emulator restarts or adb
 reconnects.
 
-## Authentication
+### Authentication
 
 In the configuration file, set `apiKey` or omit it. In code, the Kotlin and
 Swift `AuthenticationConfiguration` types each hold one form: no
@@ -177,20 +191,13 @@ Blank credentials are rejected. See
 [API keys in the app](#api-keys-in-the-app) for how a bundled credential is
 exposed.
 
-## Transport
-
-OTLP/HTTP is the default. Select `"exportProtocol": "grpc"`, Android
-`Transport.GRPC`, or iOS `.grpc` explicitly only when the chosen endpoint
-accepts OTLP/gRPC. The endpoint URL
-scheme still determines TLS or plaintext transport.
-
-## Session sampling
+### Session behavior
 
 `sessionSampleRate` is optional. When supplied, it must be finite and between
-`0.0` and `1.0`, inclusive. Each native EDOT SDK owns the session sampling
-decision.
+`0.0` and `1.0`, inclusive. EDOT Android and EDOT iOS make the session
+sampling decision.
 
-## Service identity
+### Service identity
 
 On both platforms, the `service.name` resource attribute is required. No
 resource attribute key or value may be blank, and each key is at most 255
@@ -224,20 +231,24 @@ elastic-otel-config.json was not found in the app bundle. Create it at the React
 
 A second call throws `BootstrapException` for the duplicate initialization
 before it reads or validates any configuration. A failed validation or native
-agent construction does not retain a partially initialized bridge agent.
+agent construction leaves no partially initialized agent.
 
-JavaScript bridge calls return promises. Before successful native bootstrap,
-manual telemetry calls reject with code `E_ELASTIC_OTEL_REACT_NATIVE`. Blank
-span names, blank log bodies, unsupported log severities, and unknown or
+JavaScript calls return promises. Before successful native bootstrap, manual
+telemetry calls reject with code `E_ELASTIC_OTEL_REACT_NATIVE`. Blank span
+names, blank log bodies, unsupported log severities, and unknown or
 already-ended handles also reject. Invalid parent handles create no child, and
 invalid log handles emit no log.
 
-## Native crash behavior
+## Crash reporting
 
-On Android, the EDOT Android crash plugin records uncaught JVM exceptions as
-`app.crash` log records and exports them on the next launch. In a release
-build, an uncaught JavaScript error that terminates the app is recorded the
-same way. EDOT iOS enables native
-crash reporting by default and owns persistence and next-launch export. The
-bridge does not expose a JavaScript-only crash toggle, intercept JavaScript
-fatal errors, or claim that rejected promises are native crashes.
+EDOT Android and EDOT iOS record crashes on the device and export them as
+`app.crash` log records the next time the app starts. On Android, the EDOT
+Android crash plugin, which `setup-android` or the Expo config plugin applies,
+records uncaught JVM exceptions. In a release build, an uncaught JavaScript error that terminates
+the app is recorded the same way. EDOT iOS enables native crash reporting by
+default. Crash reporting has no JavaScript setting.
+
+Crash events appear in the "Crashes" section of each platform's Application
+Overview dashboard. Refer to
+[Visualize telemetry](getting-started.md#visualize-telemetry) to install and
+open the dashboards.
