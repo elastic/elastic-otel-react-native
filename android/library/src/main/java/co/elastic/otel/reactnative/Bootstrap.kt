@@ -126,6 +126,11 @@ internal object BootstrapValidator {
             if (value.isBlank()) {
                 throw BootstrapException("The resource attribute $key must not be blank.")
             }
+            if (key.length > 255 || key.any { it.code !in 32..126 }) {
+                throw BootstrapException(
+                    "The resource attribute key $key must be at most 255 printable ASCII characters.",
+                )
+            }
         }
     }
 

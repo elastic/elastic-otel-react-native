@@ -27,7 +27,7 @@ Pod::Spec.new do |spec|
     url: 'https://github.com/elastic/apm-agent-ios.git',
     requirement: {
       kind: 'exactVersion',
-      version: '2.1.0'
+      version: '2.2.0'
     },
     products: ['ElasticApm']
   )

@@ -1,6 +1,6 @@
-import Darwin
 import ElasticApm
 import Foundation
+import OpenTelemetrySdk
 
 public enum AuthenticationConfiguration: Equatable {
   case none
@@ -146,9 +146,12 @@ enum BootstrapValidator {
           "The resource attribute \(key) must not be blank."
         )
       }
-      guard ResourceEnvironment.preserves(key: key, value: value) else {
+      guard
+        key.unicodeScalars.count <= 255,
+        key.unicodeScalars.allSatisfy({ (32 ... 126).contains($0.value) })
+      else {
         throw BootstrapException(
-          "On iOS, the resource attribute \(key) is not supported: keys and values must not contain ',' or '=', keys must not start or end with whitespace, and values must not start or end with '^', '\"', '|', or '$'."
+          "The resource attribute key \(key) must be at most 255 printable ASCII characters."
         )
       }
     }
@@ -201,63 +204,15 @@ final class AgentLifecycle<Agent> {
   }
 }
 
-// EDOT iOS 2.1.0 reads resource attributes only from OTEL_RESOURCE_ATTRIBUTES.
-// Its parser splits entries on ',' and each entry on '=', drops entries that
-// do not split into exactly a key and a value, trims whitespace from keys, and
-// trims '^', '"', '|', and '$' from both ends of values. `preserves` accepts
-// only attributes that parser reads back unchanged.
-enum ResourceEnvironment {
-  static let key = AgentEnvResource.otelResourceAttributesEnv
-  private static let separators = CharacterSet(charactersIn: ",=")
-  private static let trimmedValueCharacters = CharacterSet(
-    charactersIn: "^\"|$"
-  )
-
-  static func preserves(key: String, value: String) -> Bool {
-    key.rangeOfCharacter(from: separators) == nil
-      && value.rangeOfCharacter(from: separators) == nil
-      && key.trimmingCharacters(in: .whitespacesAndNewlines) == key
-      && value.trimmingCharacters(in: trimmedValueCharacters) == value
-  }
-
-  // Sets every attribute in OTEL_RESOURCE_ATTRIBUTES, replacing existing
-  // entries with the same keys and keeping the others, and restores the
-  // original value after the operation.
-  static func withResourceAttributes<T>(
-    _ attributes: [String: String],
-    operation: () throws -> T
-  ) throws -> T {
-    let original = getenv(key).map { String(cString: $0) }
-    let existing = original?
-      .split(separator: ",", omittingEmptySubsequences: true)
-      .map(String.init)
-      .filter { entry in
-        guard
-          let entryKey = entry.split(separator: "=", maxSplits: 1).first
-        else {
-          return true
-        }
-        return attributes[
-          entryKey.trimmingCharacters(in: .whitespacesAndNewlines)
-        ] == nil
-      } ?? []
-    let configured = attributes.sorted(by: { $0.key < $1.key })
-      .map { "\($0.key)=\($0.value)" }
-
-    guard setenv(key, (existing + configured).joined(separator: ","), 1) == 0
-    else {
-      throw BootstrapException(
-        "Could not configure the EDOT iOS resource attributes."
-      )
-    }
-    defer {
-      if let original {
-        setenv(key, original, 1)
-      } else {
-        unsetenv(key)
-      }
-    }
-    return try operation()
+// Adds the configured attributes to the resource EDOT iOS builds, keeping
+// every attribute it already holds.
+func resourceAttributesInterceptor(
+  _ attributes: [String: String]
+) -> any Interceptor<Resource> {
+  ClosureInterceptor<Resource> { resource in
+    resource.merging(
+      other: Resource(attributes: attributes.mapValues { .string($0) })
+    )
   }
 }
 
@@ -294,6 +249,9 @@ public enum ElasticOtelReactNative {
         .useConnectionType(
           validated.transport == .http ? .http : .grpc
         )
+        .addResourceInterceptor(
+          resourceAttributesInterceptor(validated.resourceAttributes)
+        )
       switch validated.authentication {
       case .none:
         break
@@ -306,11 +264,7 @@ public enum ElasticOtelReactNative {
         builder.withSessionSampleRate(sessionSampleRate)
       }
 
-      try ResourceEnvironment.withResourceAttributes(
-        validated.resourceAttributes
-      ) {
-        ElasticApmAgent.start(with: builder.build())
-      }
+      ElasticApmAgent.start(with: builder.build())
       guard let agent = ElasticApmAgent.shared() else {
         throw BootstrapException("EDOT iOS failed to initialize.")
       }

@@ -17,7 +17,7 @@ let package = Package(
   dependencies: [
     .package(
       url: "https://github.com/elastic/apm-agent-ios.git",
-      exact: "2.1.0"
+      exact: "2.2.0"
     ),
     .package(
       url: "https://github.com/open-telemetry/opentelemetry-swift-core",
@@ -31,6 +31,10 @@ let package = Package(
         .product(name: "ElasticApm", package: "apm-agent-ios"),
         .product(
           name: "OpenTelemetryApi",
+          package: "opentelemetry-swift-core"
+        ),
+        .product(
+          name: "OpenTelemetrySdk",
           package: "opentelemetry-swift-core"
         ),
       ],

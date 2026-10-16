@@ -1,3 +1,4 @@
+const Ajv2020 = require('ajv/dist/2020').default;
 const schema = require('../elastic-otel-config.schema.json');
 
 describe('elastic-otel-config.json schema', () => {
@@ -38,13 +39,37 @@ describe('elastic-otel-config.json schema', () => {
       schema.properties.exportUrl,
       schema.properties.apiKey,
       schema.properties.resourceAttributes.additionalProperties,
+      schema.properties.resourceAttributes.propertyNames,
     ];
     for (const rule of stringRules) {
       expect(rule).toMatchObject(nonBlankString);
     }
-    expect(schema.properties.resourceAttributes.propertyNames.pattern).toBe(
-      schema.$defs.nonBlankString.pattern,
-    );
+  });
+
+  it('accepts resource attribute keys of at most 255 printable ASCII characters', () => {
+    const validate = new Ajv2020().compile(schema);
+    const config = (key) => ({
+      exportUrl: 'https://example.com',
+      resourceAttributes: { 'service.name': 'service', [key]: 'value' },
+    });
+    for (const key of [
+      'custom,key',
+      'custom=key',
+      ' custom.key',
+      'custom.key ',
+      'k'.repeat(255),
+    ]) {
+      expect(validate(config(key))).toBe(true);
+    }
+    for (const key of [
+      ' ',
+      'k'.repeat(256),
+      'custom.ключ',
+      'custom\tkey',
+      'custom\nkey',
+    ]) {
+      expect(validate(config(key))).toBe(false);
+    }
   });
 
   it('rejects blank strings through the non-blank pattern', () => {

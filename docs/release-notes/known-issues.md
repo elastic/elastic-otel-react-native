@@ -18,9 +18,6 @@ description: Known limitations of EDOT React Native.
 - Android hosts must declare `minSdkVersion = 26` or higher. See [Supported configuration](../reference/edot-react-native/getting-started.md#supported-configuration).
 - EDOT Android and EDOT iOS own native crash reporting. JavaScript fatal errors,
   rejected promises, and source maps are not intercepted by this bridge.
-- On iOS, resource attribute keys and values must not contain `,` or `=`,
-  keys must not start or end with whitespace, and values must not start or
-  end with `^`, `"`, `|`, or `$`. Initialization rejects such attributes.
 - Automatic OkHttp and URLSession instrumentation must be validated with
   representative application request paths.
 - Source maps, automatic navigation telemetry, arbitrary attributes, and
