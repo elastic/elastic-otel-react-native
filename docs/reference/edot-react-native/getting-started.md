@@ -27,7 +27,7 @@ This table is the canonical record of tested versions.
 | Xcode                 | 27.0                                        |
 | CocoaPods             | 1.16.2                                      |
 | iOS deployment target | 16.0                                        |
-| EDOT iOS              | 2.1.0 (`ElasticApm` SwiftPM product)        |
+| EDOT iOS              | 2.2.0 (`ElasticApm` SwiftPM product)        |
 | Expo SDK              | 57 (`expo` 57.0.27, `@expo/cli` 57.0.28)    |
 | React Native for Expo | 0.86.3                                      |
 

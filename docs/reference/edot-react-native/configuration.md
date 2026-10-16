@@ -48,8 +48,6 @@ Use OpenTelemetry semantic convention keys in `resourceAttributes`.
 `service.name` is required. `service.version` defaults to the application
 version. Set `deployment.environment.name` and other attributes, such as
 `service.namespace`, as needed. See [Service identity](#service-identity).
-On iOS, some characters are not supported in resource attributes; see
-[iOS resource attribute characters](#ios-resource-attribute-characters).
 
 The file accepts only the keys in this table. An unknown key, such as a
 misspelled `apikey`, is rejected rather than ignored, so a typo cannot silently
@@ -76,17 +74,6 @@ and starts EDOT iOS before React Native starts.
 
 Rebuild the app after you change the file. For what happens when the file is
 missing or invalid, see [Initialization and errors](#initialization-and-errors).
-
-### iOS resource attribute characters
-
-On iOS, initialization rejects these resource attributes, with a message
-that starts with `On iOS`:
-
-- a key or value that contains `,` or `=`;
-- a key that starts or ends with whitespace; and
-- a value that starts or ends with `^`, `"`, `|`, or `$`.
-
-The same rule applies to a `BootstrapConfiguration` passed in code.
 
 ### API keys in the app
 
@@ -205,13 +192,15 @@ decision.
 
 ## Service identity
 
-On both platforms, the `service.name` resource attribute is required, and no
-resource attribute key or value may be blank. Use a stable name that
-identifies the mobile application as the telemetry-producing service.
+On both platforms, the `service.name` resource attribute is required. No
+resource attribute key or value may be blank, and each key is at most 255
+printable ASCII characters. Initialization rejects an attribute that breaks
+these rules, with a message that names the key unless the key is blank. The
+same rules apply to a `BootstrapConfiguration` passed in code. Use a stable
+name that identifies the mobile application as the telemetry-producing
+service.
 
-When `service.version` is absent, the application version is used. On iOS,
-some characters are not supported; see
-[iOS resource attribute characters](#ios-resource-attribute-characters).
+When `service.version` is absent, the application version is used.
 
 ## Initialization and errors
 

@@ -13,7 +13,7 @@ import org.junit.Test
 
 private val IDENTITY = mapOf("service.name" to "fixture")
 
-// The iOS BootstrapTests use the same two lists.
+// The iOS BootstrapTests use the same lists.
 private val SIGNAL_PATHS = listOf(
     "/v1/traces",
     "/v1/logs",
@@ -29,6 +29,25 @@ private val SIGNAL_PATHS = listOf(
     "/V1/Metrics",
 )
 private val BASE_PATHS = listOf("", "/gateway", "/v1/tracesx")
+private val ACCEPTED_RESOURCE_ATTRIBUTES = mapOf(
+    "custom,key" to "value",
+    "custom=key" to "value",
+    " custom.key" to "value",
+    "custom.key " to "value",
+    "custom.caret" to "^value",
+    "custom.quote" to "value\"",
+    "custom.pipe" to "|value",
+    "custom.dollar" to "value$",
+    "custom.list" to "a,b",
+    "custom.pair" to "k=v",
+    "k".repeat(255) to "value",
+)
+private val REJECTED_RESOURCE_ATTRIBUTE_KEYS = listOf(
+    "k".repeat(256),
+    "custom.ключ",
+    "custom\tkey",
+    "custom\nkey",
+)
 
 class BootstrapTest {
     @Test
@@ -288,6 +307,36 @@ class BootstrapTest {
                 BootstrapValidator.validate(configuration)
             }
             assertTrue(exception.message!!, exception.message!!.contains(subject))
+        }
+    }
+
+    @Test
+    fun resourceAttributesAreAcceptedUnchanged() {
+        val validated = BootstrapValidator.validate(
+            BootstrapConfiguration(
+                "https://example.test",
+                resourceAttributes = IDENTITY + ACCEPTED_RESOURCE_ATTRIBUTES,
+            ),
+        )
+
+        assertEquals(ACCEPTED_RESOURCE_ATTRIBUTES, validated.otherResourceAttributes)
+    }
+
+    @Test
+    fun resourceAttributeKeysOutsideTheShapeAreRejected() {
+        REJECTED_RESOURCE_ATTRIBUTE_KEYS.forEach { key ->
+            val exception = assertThrows(BootstrapException::class.java) {
+                BootstrapValidator.validate(
+                    BootstrapConfiguration(
+                        "https://example.test",
+                        resourceAttributes = IDENTITY + (key to "value"),
+                    ),
+                )
+            }
+            assertEquals(
+                "The resource attribute key $key must be at most 255 printable ASCII characters.",
+                exception.message,
+            )
         }
     }
 

@@ -1,11 +1,12 @@
-import Darwin
+import OpenTelemetryApi
+import OpenTelemetrySdk
 import XCTest
 
 @testable import ElasticOtelReactNativeCore
 
 private let identity = ["service.name": "service"]
 
-// The Android BootstrapTest uses the same two lists.
+// The Android BootstrapTest uses the same lists.
 private let signalPaths = [
   "/v1/traces",
   "/v1/logs",
@@ -21,6 +22,25 @@ private let signalPaths = [
   "/V1/Metrics",
 ]
 private let basePaths = ["", "/gateway", "/v1/tracesx"]
+private let acceptedResourceAttributes = [
+  "custom,key": "value",
+  "custom=key": "value",
+  " custom.key": "value",
+  "custom.key ": "value",
+  "custom.caret": "^value",
+  "custom.quote": "value\"",
+  "custom.pipe": "|value",
+  "custom.dollar": "value$",
+  "custom.list": "a,b",
+  "custom.pair": "k=v",
+  String(repeating: "k", count: 255): "value",
+]
+private let rejectedResourceAttributeKeys = [
+  String(repeating: "k", count: 256),
+  "custom.ключ",
+  "custom\tkey",
+  "custom\nkey",
+]
 
 final class BootstrapTests: XCTestCase {
   func testValidatesAndNormalizesConfiguration() throws {
@@ -50,12 +70,8 @@ final class BootstrapTests: XCTestCase {
     )
   }
 
-  func testAcceptsResourceAttributesThatEdotIosReadsBackUnchanged() throws {
-    let attributes = [
-      "service.name": "my service",
-      "service.namespace": "a/b:c;d",
-      "custom.url": "https://example.com/path?x",
-    ]
+  func testAcceptsResourceAttributesUnchanged() throws {
+    let attributes = identity.merging(acceptedResourceAttributes) { $1 }
 
     XCTAssertEqual(
       try BootstrapValidator.validate(
@@ -70,9 +86,6 @@ final class BootstrapTests: XCTestCase {
 
   func testRejectsInvalidBootstrapInputs() {
     let url = "https://example.com"
-    let unsupportedCharacters = { (key: String) in
-      "On iOS, the resource attribute \(key) is not supported: keys and values must not contain ',' or '=', keys must not start or end with whitespace, and values must not start or end with '^', '\"', '|', or '$'."
-    }
     var invalid: [(BootstrapConfiguration, String)] = [
       (
         BootstrapConfiguration(exportUrl: " ", resourceAttributes: identity),
@@ -164,26 +177,14 @@ final class BootstrapTests: XCTestCase {
         "The session sample rate must be between 0 and 1."
       ),
     ]
-    let unsupported: [(String, String)] = [
-      ("service.name", "service,other"),
-      ("service.name", "service=other"),
-      ("custom,key", "value"),
-      ("custom=key", "value"),
-      (" custom.key", "value"),
-      ("custom.key ", "value"),
-      ("custom.key", "^value"),
-      ("custom.key", "value\""),
-      ("custom.key", "|value"),
-      ("custom.key", "value$"),
-    ]
-    for (key, value) in unsupported {
+    for key in rejectedResourceAttributeKeys {
       invalid.append(
         (
           BootstrapConfiguration(
             exportUrl: url,
-            resourceAttributes: identity.merging([key: value]) { $1 }
+            resourceAttributes: identity.merging([key: "value"]) { $1 }
           ),
-          unsupportedCharacters(key)
+          "The resource attribute key \(key) must be at most 255 printable ASCII characters."
         )
       )
     }
@@ -307,31 +308,32 @@ final class BootstrapTests: XCTestCase {
     XCTAssertFalse(lifecycle.isInitialized())
   }
 
-  func testResourceAttributesOverrideAndRestoreEnvironment() throws {
-    let key = ResourceEnvironment.key
-    let original = getenv(key).map { String(cString: $0) }
-    setenv(key, "custom=value,service.name=old, service.version =0.1", 1)
-    defer {
-      if let original {
-        setenv(key, original, 1)
-      } else {
-        unsetenv(key)
-      }
-    }
-    let expected =
-      "custom=value,deployment.environment.name=local,service.name=mobile-service,service.version=1.2.3"
+  func testResourceAttributesAreAddedWithoutRemovingExistingAttributes() {
+    let detected = Resource(attributes: [
+      "service.name": .string("detected"),
+      "os.name": .string("iOS"),
+    ])
 
-    try ResourceEnvironment.withResourceAttributes([
-      "service.name": "mobile-service",
-      "service.version": "1.2.3",
-      "deployment.environment.name": "local",
-    ]) {
-      XCTAssertEqual(getenv(key).map { String(cString: $0) }, expected)
-      XCTAssertEqual(ProcessInfo.processInfo.environment[key], expected)
-    }
+    let intercepted = resourceAttributesInterceptor([
+      "service.name": "service",
+      "custom.list": "a,b",
+      "custom.pair": "k=v",
+      "custom.quoted": "\"quoted\"",
+      "custom.edges": "^|value|$",
+      "custom,key": "value",
+    ]).intercept(detected)
+
     XCTAssertEqual(
-      getenv(key).map { String(cString: $0) },
-      "custom=value,service.name=old, service.version =0.1"
+      intercepted.attributes,
+      [
+        "service.name": .string("service"),
+        "os.name": .string("iOS"),
+        "custom.list": .string("a,b"),
+        "custom.pair": .string("k=v"),
+        "custom.quoted": .string("\"quoted\""),
+        "custom.edges": .string("^|value|$"),
+        "custom,key": .string("value"),
+      ]
     )
   }
 }

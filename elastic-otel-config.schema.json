@@ -34,7 +34,9 @@
       "type": "object",
       "required": ["service.name"],
       "propertyNames": {
-        "pattern": "\\S"
+        "$ref": "#/$defs/nonBlankString",
+        "maxLength": 255,
+        "pattern": "^[ -~]*$"
       },
       "additionalProperties": {
         "$ref": "#/$defs/nonBlankString"
