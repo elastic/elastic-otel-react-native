@@ -16,18 +16,25 @@ Kibana. For an Expo application, see
 
 ## Requirements
 
-| Requirement            | Minimum version |
-| ---------------------- | --------------- |
-| React Native           | 0.80            |
-| Android API level      | 26              |
-| Android compile SDK    | 36              |
-| iOS                    | 16              |
-| Expo SDK, in Expo apps | 57              |
+| Requirement            | Minimum version                          |
+| ---------------------- | ---------------------------------------- |
+| React Native           | 0.80                                     |
+| Android API level      | 26, or 24 with Java 8 library desugaring |
+| Android compile SDK    | 36                                       |
+| iOS                    | 16                                       |
+| Expo SDK, in Expo apps | 57                                       |
 
-The build enforces these minimums. An Android app with a lower
-`minSdkVersion` fails to build with a manifest merger error; EDOT React Native
-does not support lower API levels through desugaring. Newer versions are
-expected to work.
+The build enforces these minimums. Below Android API level 26 without
+[Java 8 library desugaring](https://developer.android.com/studio/write/java8-support#library-desugaring),
+the Android build stops with an EDOT React Native error that names the
+variant and its `minSdk` and gives two choices: raise `minSdk` to 26, or
+keep it at 24 or higher and enable desugaring. Below 24, the build fails
+with a manifest merger error, even with desugaring enabled. Newer versions
+are expected to work.
+
+React Native's template sets `minSdkVersion` to 24. In a new bare app,
+raise it to 26 in `android/build.gradle` or enable Java 8 library desugaring
+in `android/app/build.gradle`.
 
 You also need an OTLP endpoint to send telemetry to; see
 [Export connectivity](configuration.md#export-connectivity).
@@ -82,10 +89,11 @@ The command supports the React Native template's Groovy `buildscript` and
   OkHttp, and crash plugin `classpath` lines after
   `classpath("com.android.tools.build:gradle")`.
 - In `android/app/build.gradle`, it applies the three plugins and the
-  package's configuration Gradle script after
+  package's Gradle script after
   `apply plugin: "com.facebook.react"`. The script copies
   `elastic-otel-config.json` from the project root into the application assets
   at build time; see [Configuration file](configuration.md#configuration-file).
+  It also checks the Android API and desugaring requirements above.
 
 The command skips lines that are already present, so running it again changes
 nothing. If a file or one of those anchor lines is missing, it changes no file,
@@ -203,6 +211,13 @@ commands and do not add the native lines by hand.
    npx expo prebuild
    ```
 
+Expo's default `minSdk` is 24. Without the `expo-build-properties`
+`minSdkVersion: 26` setting, the Android build stops with the same EDOT React
+Native error. If your app stays at 24 or 25, enable Java 8 library desugaring
+in the generated `android/app/build.gradle` through your own config plugin.
+Neither the package's config plugin nor `expo-build-properties` sets
+desugaring.
+
 Prebuild fails when `elastic-otel-config.json` is missing at the project root.
 It also fails when `MainApplication` is not Kotlin, `AppDelegate` is not
 Swift, or a generated file lacks a line that the plugin inserts after; the
@@ -238,14 +253,14 @@ buildscript {
 }
 ```
 
-Apply all three plugins and the configuration Gradle script in
+Apply all three plugins and the package's Gradle script in
 `android/app/build.gradle`:
 
 ```groovy
 apply plugin: "co.elastic.otel.android.agent"
 apply plugin: "co.elastic.otel.android.instrumentation.okhttp"
 apply plugin: "co.elastic.otel.android.instrumentation.crash"
-apply from: "../../node_modules/@elastic/otel-react-native/android/elastic-otel-config.gradle"
+apply from: "../../node_modules/@elastic/otel-react-native/android/elastic-otel.gradle"
 ```
 
 For iOS, add `elastic-otel-config.json` from the project root to the app

@@ -102,6 +102,71 @@ function replaceOnce(content, search, replacement) {
   return content.replace(search, replacement);
 }
 
+function runGradle(tasks) {
+  const run = spawnSync(
+    process.platform === 'win32' ? 'gradlew.bat' : './gradlew',
+    tasks,
+    {
+      cwd: join(EXTERNAL_FIXTURE, 'android'),
+      encoding: 'utf8',
+      maxBuffer: 128 * 1024 * 1024,
+    },
+  );
+  assert.ifError(run.error);
+  assert.equal(run.signal, null);
+  return { status: run.status, output: `${run.stdout}\n${run.stderr}` };
+}
+
+async function verifyDesugaringRequirements() {
+  const rootPath = join(EXTERNAL_FIXTURE, ROOT_BUILD);
+  const appPath = join(EXTERNAL_FIXTURE, APP_BUILD);
+  const root = await readFile(rootPath, 'utf8');
+  const app = await readFile(appPath, 'utf8');
+  const configured = await snapshot(EXTERNAL_FIXTURE);
+  for (const desugaring of [true, false]) {
+    try {
+      await writeFile(
+        rootPath,
+        replaceOnce(root, 'minSdkVersion = 26', 'minSdkVersion = 24'),
+      );
+      if (desugaring) {
+        await writeFile(
+          appPath,
+          `${app}\nandroid.compileOptions.coreLibraryDesugaringEnabled = true\n` +
+            'dependencies {\n' +
+            '    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")\n' +
+            '}\n',
+        );
+      } else {
+        const configurationTasks = runGradle(['tasks', 'clean']);
+        assert.equal(configurationTasks.status, 0, configurationTasks.output);
+        assert.doesNotMatch(configurationTasks.output, /EDOT React Native:/);
+      }
+      const before = await snapshot(EXTERNAL_FIXTURE);
+      const manifest = runGradle([':app:processDebugMainManifest']);
+      if (desugaring) {
+        assert.equal(manifest.status, 0, manifest.output);
+        assert.doesNotMatch(manifest.output, /EDOT React Native:/);
+        const assembled = runGradle([':app:assembleDebug']);
+        assert.equal(assembled.status, 0, assembled.output);
+        assert.doesNotMatch(assembled.output, /EDOT React Native:/);
+      } else {
+        assert.notEqual(manifest.status, 0, manifest.output);
+        assert.match(
+          manifest.output,
+          /EDOT React Native: variant 'debug' has minSdk 24.*Raise minSdk to 26.*coreLibraryDesugaringEnabled.*coreLibraryDesugaring dependency/,
+        );
+        assert.doesNotMatch(manifest.output, /Manifest merger failed/);
+      }
+      assert.deepEqual(await snapshot(EXTERNAL_FIXTURE), before);
+    } finally {
+      await writeFile(rootPath, root);
+      await writeFile(appPath, app);
+    }
+    assert.deepEqual(await snapshot(EXTERNAL_FIXTURE), configured);
+  }
+}
+
 // The fixture files with the setup lines added by hand at their anchors.
 async function expectedContent() {
   const root = await readFile(join(FIXTURE, ROOT_BUILD), 'utf8');
@@ -252,16 +317,12 @@ async function verifySupportedFlow() {
   assert.match(rerun.output, /already configured/);
   assert.deepEqual(await snapshot(EXTERNAL_FIXTURE), configured);
 
+  await verifyDesugaringRequirements();
+
   const assembleDebug = () => {
-    const assembled = spawnSync(
-      process.platform === 'win32' ? 'gradlew.bat' : './gradlew',
-      [':app:assembleDebug'],
-      {
-        cwd: join(EXTERNAL_FIXTURE, 'android'),
-        encoding: 'utf8',
-      },
-    );
-    assert.equal(assembled.status, 0, assembled.stderr || assembled.stdout);
+    const assembled = runGradle([':app:assembleDebug']);
+    assert.equal(assembled.status, 0, assembled.output);
+    assert.doesNotMatch(assembled.output, /EDOT React Native:/);
     const listed = spawnSync(
       'unzip',
       [
@@ -278,15 +339,16 @@ async function verifySupportedFlow() {
   };
   assert.match(assembleDebug(), /\sassets\/elastic-otel-config\.json\n/);
 
-  // The copy task syncs its output directory, so a file left there by an
+  // The copy task empties its output directory, so a file left there by an
   // earlier build, such as a renamed configuration file, is not packaged
-  // when the configuration file changes.
+  // when the configuration file changes. AGP names the directory after the
+  // task that generates it.
   const configFile = join(EXTERNAL_FIXTURE, CONFIG_FILE);
   await writeFile(configFile, `${await readFile(configFile, 'utf8')}\n`);
   await writeFile(
     join(
       EXTERNAL_FIXTURE,
-      'android/app/build/generated/elasticOtel/assets/stale.json',
+      'android/app/build/generated/assets/copyDebugElasticOtelConfig/stale.json',
     ),
     '{}\n',
   );
@@ -328,6 +390,38 @@ async function verifyPartlyConfigured() {
       );
     }
   }
+}
+
+async function verifyLowerMinSdkSetup() {
+  const project = join(WORK, 'min-sdk-24');
+  await copyFixture(project);
+  const rootPath = join(project, ROOT_BUILD);
+  const root = replaceOnce(
+    await readFile(rootPath, 'utf8'),
+    'minSdkVersion = 26',
+    'minSdkVersion = 24',
+  );
+  await writeFile(rootPath, root);
+  const before = await snapshot(project);
+  const run = runCli(project);
+  assert.equal(run.exitCode, 0, run.output);
+  assert.deepEqual(changedPaths(before, await snapshot(project)), [
+    APP_BUILD,
+    ROOT_BUILD,
+  ]);
+  const expected = await expectedContent();
+  assert.equal(
+    await readFile(rootPath, 'utf8'),
+    replaceOnce(
+      expected[ROOT_BUILD],
+      'minSdkVersion = 26',
+      'minSdkVersion = 24',
+    ),
+  );
+  assert.equal(
+    await readFile(join(project, APP_BUILD), 'utf8'),
+    expected[APP_BUILD],
+  );
 }
 
 // A group line above its anchor does not pull the missing lines away from
@@ -421,6 +515,7 @@ async function verifyWriteFailure() {
 await rm(WORK, { recursive: true, force: true });
 await mkdir(WORK, { recursive: true });
 await verifySupportedFlow();
+await verifyLowerMinSdkSetup();
 await verifyPartlyConfigured();
 await verifyGroupLineAboveAnchor();
 await verifyMissingAnchor();

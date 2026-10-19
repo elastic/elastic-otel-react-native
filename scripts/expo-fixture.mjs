@@ -1,6 +1,14 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { cp, mkdir, readFile, readdir, rename, rm } from 'node:fs/promises';
+import {
+  cp,
+  mkdir,
+  readFile,
+  readdir,
+  rename,
+  rm,
+  writeFile,
+} from 'node:fs/promises';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { setTimeout as sleep } from 'node:timers/promises';
@@ -137,6 +145,47 @@ async function assertEdits() {
   );
 }
 
+async function verifyAndroidDesugaringRejection() {
+  const appJsonPath = join(FIXTURE, 'app.json');
+  const original = await readFile(appJsonPath, 'utf8');
+  const appJson = JSON.parse(original);
+  const buildProperties = appJson.expo.plugins.find(
+    (plugin) => Array.isArray(plugin) && plugin[0] === 'expo-build-properties',
+  );
+  assert.equal(buildProperties[1].android.minSdkVersion, 26);
+  buildProperties[1].android.minSdkVersion = 24;
+  try {
+    await writeFile(appJsonPath, `${JSON.stringify(appJson, null, 2)}\n`);
+    runOrThrow('npx', ['expo', 'prebuild', '--clean', '--no-install']);
+    const paths = [APP_BUILD, 'android/gradle.properties'];
+    const before = await Promise.all(
+      paths.map((path) => readFile(join(FIXTURE, path), 'utf8')),
+    );
+    for (const content of before) {
+      assert.doesNotMatch(content, /coreLibraryDesugaring/);
+    }
+    const rejected = run(
+      './gradlew',
+      [':app:processReleaseMainManifest'],
+      join(FIXTURE, 'android'),
+    );
+    assert.notEqual(rejected.status, 0, rejected.output);
+    assert.match(
+      rejected.output,
+      /EDOT React Native: variant 'release' has minSdk 24.*Raise minSdk to 26.*coreLibraryDesugaringEnabled.*coreLibraryDesugaring dependency/,
+    );
+    assert.doesNotMatch(rejected.output, /Manifest merger failed/);
+    assert.deepEqual(
+      await Promise.all(
+        paths.map((path) => readFile(join(FIXTURE, path), 'utf8')),
+      ),
+      before,
+    );
+  } finally {
+    await writeFile(appJsonPath, original);
+  }
+}
+
 // Installs the packed package, as an application would, and checks prebuild.
 async function prepareFixture() {
   runOrThrow('npm', ['ci', '--no-audit', '--no-fund']);
@@ -177,6 +226,10 @@ async function prepareFixture() {
     await rename(movedConfigFile, CONFIG_PATH);
   }
 
+  if (PLATFORM === 'android') {
+    await verifyAndroidDesugaringRejection();
+  }
+
   // Pods are installed later, because CocoaPods rewrites the Xcode project
   // file in its own format. A second prebuild over the generated projects
   // keeps each edit once.
@@ -190,7 +243,9 @@ async function prepareFixture() {
 async function buildAndroid() {
   await rm(APK_OUTPUT, { recursive: true, force: true });
   const android = join(FIXTURE, 'android');
-  runOrThrow('./gradlew', [':app:assembleRelease'], android);
+  const built = run('./gradlew', [':app:assembleRelease'], android);
+  assert.equal(built.status, 0, built.output.slice(-8_000));
+  assert.doesNotMatch(built.output, /EDOT React Native:/);
   const apk = join(android, 'app/build/outputs/apk/release/app-release.apk');
   assert.match(
     runOrThrow('unzip', ['-l', apk]),

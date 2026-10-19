@@ -21,7 +21,7 @@ const APPLY_PLUGIN_LINES = [
   'co.elastic.otel.android.instrumentation.crash',
 ].map((plugin) => `apply plugin: "${plugin}"`);
 const CONFIG_SCRIPT_LINE =
-  'apply from: "../../node_modules/@elastic/otel-react-native/android/elastic-otel-config.gradle"';
+  'apply from: "../../node_modules/@elastic/otel-react-native/android/elastic-otel.gradle"';
 
 // The Gradle edits whose anchors the React Native and Expo templates share.
 // The classpath anchors differ in quoting, so each caller defines its own.

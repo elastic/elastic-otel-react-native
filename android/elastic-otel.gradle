@@ -1,0 +1,81 @@
+// Checks the app's desugaring requirement and copies elastic-otel-config.json
+// into its assets. Apply this script from android/app/build.gradle:
+//
+//   apply from: "../../node_modules/@elastic/otel-react-native/android/elastic-otel.gradle"
+
+// Empties its output directory before copying, so a file left there by an
+// earlier build, such as a renamed configuration file, is not packaged.
+abstract class ElasticOtelConfigCopy extends DefaultTask {
+    @InputFile
+    abstract RegularFileProperty getConfigFile()
+
+    @OutputDirectory
+    abstract DirectoryProperty getOutputDirectory()
+
+    @TaskAction
+    void copy() {
+        def source = configFile.get().asFile
+        def directory = outputDirectory.get().asFile
+        directory.deleteDir()
+        directory.mkdirs()
+        new File(directory, source.name).bytes = source.bytes
+    }
+}
+
+// Fails the variant's build below minSdk 26 without desugaring. The empty
+// output directory lets Gradle skip the check until an input changes.
+abstract class ElasticOtelDesugaringCheck extends DefaultTask {
+    @Input
+    abstract Property<String> getVariantName()
+
+    @Input
+    abstract Property<Integer> getMinSdk()
+
+    @Input
+    abstract Property<Boolean> getDesugaringEnabled()
+
+    @OutputDirectory
+    abstract DirectoryProperty getOutputDirectory()
+
+    @TaskAction
+    void check() {
+        if (minSdk.get() < 26 && !desugaringEnabled.get()) {
+            throw new GradleException(
+                "EDOT React Native: variant '${variantName.get()}' has minSdk ${minSdk.get()} " +
+                    "without Java 8 library desugaring. Raise minSdk to 26, or keep " +
+                    "minSdk at 24 or higher and enable Java 8 library desugaring with " +
+                    "coreLibraryDesugaringEnabled and a coreLibraryDesugaring dependency."
+            )
+        }
+    }
+}
+
+def elasticOtelConfigFile = new File(rootProject.projectDir.parentFile, "elastic-otel-config.json")
+
+if (!elasticOtelConfigFile.isFile()) {
+    logger.warn(
+        "EDOT React Native: ${elasticOtelConfigFile.absolutePath} was not found. " +
+            "ElasticOtelReactNative.initialize(this) fails at startup without it."
+    )
+}
+
+androidComponents.onVariants(androidComponents.selector().all()) { variant ->
+    def taskSuffix = variant.name.capitalize()
+    def checkTaskName = "check${taskSuffix}ElasticOtelDesugaring"
+    def checkDesugaring = tasks.register(checkTaskName, ElasticOtelDesugaringCheck) {
+        variantName.set(variant.name)
+        minSdk.set(variant.minSdk.apiLevel)
+        desugaringEnabled.set(android.compileOptions.coreLibraryDesugaringEnabled)
+        outputDirectory.set(layout.buildDirectory.dir("intermediates/elasticOtel/${checkTaskName}"))
+    }
+    variant.lifecycleTasks.registerPreBuild(checkDesugaring)
+
+    if (elasticOtelConfigFile.isFile()) {
+        def copyConfig = tasks.register("copy${taskSuffix}ElasticOtelConfig", ElasticOtelConfigCopy) {
+            configFile.set(elasticOtelConfigFile)
+        }
+        variant.sources.assets?.addGeneratedSourceDirectory(copyConfig) { ElasticOtelConfigCopy task ->
+            task.outputDirectory
+        }
+    }
+}

@@ -66,7 +66,7 @@ only one of its values is used.
 
 #### How the file reaches the app
 
-On Android, `setup-android` applies the package's `elastic-otel-config.gradle`
+On Android, `setup-android` applies the package's `elastic-otel.gradle`
 script in `android/app/build.gradle`. At build time the script copies
 `elastic-otel-config.json` into the application assets. If the file does not
 exist, the build logs a warning with the expected path and continues. In

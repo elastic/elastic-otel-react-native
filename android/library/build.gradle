@@ -10,12 +10,18 @@ android {
     compileSdk = 36
 
     defaultConfig {
-        minSdk = 26
+        minSdk = 24
     }
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    lint {
+        checkOnly += "NewApi"
+        error += "NewApi"
+        abortOnError = true
     }
 
     testOptions {
