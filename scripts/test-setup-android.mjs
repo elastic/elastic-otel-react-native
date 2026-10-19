@@ -147,6 +147,9 @@ async function verifyDesugaringRequirements() {
       if (desugaring) {
         assert.equal(manifest.status, 0, manifest.output);
         assert.doesNotMatch(manifest.output, /EDOT React Native:/);
+        const assembled = runGradle([':app:assembleDebug']);
+        assert.equal(assembled.status, 0, assembled.output);
+        assert.doesNotMatch(assembled.output, /EDOT React Native:/);
       } else {
         assert.notEqual(manifest.status, 0, manifest.output);
         assert.match(
