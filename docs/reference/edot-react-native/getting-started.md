@@ -190,19 +190,43 @@ commands and do not add the native lines by hand.
    }
    ```
 
-4. To record taps, install `babel-preset-expo` and add the Babel plugin to
-   `babel.config.js`; see
-   [Widget tap events](automatic-instrumentation.md#widget-tap-events):
+4. To record taps, install `babel-preset-expo`; see
+   [Widget tap events](automatic-instrumentation.md#widget-tap-events) for what
+   each tap records:
 
    ```sh
    npx expo install babel-preset-expo
    ```
 
+   If your project has no `babel.config.js`, generate it from the project root:
+
+   ```sh
+   npx expo customize babel.config.js
+   ```
+
+   Add a `plugins` array containing `'@elastic/otel-react-native/babel-plugin'`
+   to the generated file. The generated configuration with the plugin added is:
+
    ```js
-   module.exports = {
-     presets: ['babel-preset-expo'],
-     plugins: ['@elastic/otel-react-native/babel-plugin'],
+   module.exports = function (api) {
+     api.cache(true);
+     return {
+       presets: ['babel-preset-expo'],
+       plugins: ['@elastic/otel-react-native/babel-plugin'],
+     };
    };
+   ```
+
+   If `babel.config.js` already exists, add
+   `'@elastic/otel-react-native/babel-plugin'` to its `plugins` array, creating
+   the array if needed. Keep all existing presets, including
+   `babel-preset-expo`, and all other plugins.
+
+   See the [Expo SDK 57 Babel reference](https://docs.expo.dev/versions/v57.0.0/config/babel/)
+   for details. Restart Metro with a cleared cache to apply the change:
+
+   ```sh
+   npx expo start --clear
    ```
 
 5. Generate the native projects:
