@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import {
   cp,
   mkdir,
@@ -26,8 +27,9 @@ import {
 } from '../setup-edits.cjs';
 
 // build: prebuilds the Expo fixture with the packed package's config plugin,
-// checks the generated native projects, and builds the platform's Release app.
-// launch: installs that Release app on the running Android emulator or on a
+// checks the generated native projects, and builds both Android Release APKs
+// or the iOS Release app.
+// launch: installs each Release app on the running Android emulator or on a
 // temporary iOS simulator and waits for EDOT to report that it is ready.
 const [MODE, PLATFORM] = process.argv.slice(2);
 if (
@@ -52,7 +54,14 @@ const CONFIG_PATH = join(FIXTURE, CONFIG_FILE);
 const ROOT_BUILD = 'android/build.gradle';
 const APP_BUILD = 'android/app/build.gradle';
 const XCODE_PROJECT = `ios/${APP_NAME}.xcodeproj/project.pbxproj`;
-const APK = join(APK_OUTPUT, 'app-release.apk');
+const ANDROID_RELEASES = [
+  { name: 'unshrunk', minify: false, apk: join(APK_OUTPUT, 'app-release.apk') },
+  {
+    name: 'minified',
+    minify: true,
+    apk: join(APK_OUTPUT, 'app-release-minified.apk'),
+  },
+];
 const IOS_APP = join(
   DERIVED_DATA,
   `Build/Products/Release-iphonesimulator/${APP_NAME}.app`,
@@ -239,20 +248,45 @@ async function prepareFixture() {
   await assertEdits();
 }
 
-// Builds the Release APK, which packages the configuration file.
+// Builds unshrunk and minified Release APKs with the configuration file.
 async function buildAndroid() {
   await rm(APK_OUTPUT, { recursive: true, force: true });
   const android = join(FIXTURE, 'android');
-  const built = run('./gradlew', [':app:assembleRelease'], android);
-  assert.equal(built.status, 0, built.output.slice(-8_000));
-  assert.doesNotMatch(built.output, /EDOT React Native:/);
+  const mappingDirectory = join(android, 'app/build/outputs/mapping/release');
+  const mapping = join(mappingDirectory, 'mapping.txt');
+  await rm(mappingDirectory, { recursive: true, force: true });
   const apk = join(android, 'app/build/outputs/apk/release/app-release.apk');
-  assert.match(
-    runOrThrow('unzip', ['-l', apk]),
-    /\sassets\/elastic-otel-config\.json\n/,
-  );
   await mkdir(APK_OUTPUT, { recursive: true });
-  await cp(apk, APK);
+  for (const release of ANDROID_RELEASES) {
+    console.log(`Building Android ${release.name} Release: ${release.apk}`);
+    const built = run(
+      './gradlew',
+      [
+        ':app:assembleRelease',
+        `-Pandroid.enableMinifyInReleaseBuilds=${release.minify}`,
+      ],
+      android,
+    );
+    assert.equal(
+      built.status,
+      0,
+      `Android ${release.name} Release failed.\n${built.output.slice(-8_000)}`,
+    );
+    assert.doesNotMatch(built.output, /EDOT React Native:/);
+    assert.equal(
+      existsSync(mapping),
+      release.minify,
+      `Android ${release.name} Release must ${release.minify ? '' : 'not '}produce ${mapping}.`,
+    );
+    console.log(
+      `Android ${release.name} Release: mapping.txt ${release.minify ? 'produced' : 'absent'}.`,
+    );
+    assert.match(
+      runOrThrow('unzip', ['-l', apk]),
+      /\sassets\/elastic-otel-config\.json\n/,
+    );
+    await cp(apk, release.apk);
+  }
 }
 
 // Builds the Release simulator app, which holds the configuration file and
@@ -292,20 +326,20 @@ async function buildIos() {
 
 // Polls the app's log until it holds the ready line, or fails with the end of
 // the log after the timeout.
-async function waitForReady(readLog) {
+async function waitForReady(readLog, label = PLATFORM) {
   const deadline = Date.now() + TIMEOUT_SECONDS * 1_000;
   let log = readLog();
   while (!log.includes(READY_LINE)) {
     if (Date.now() >= deadline) {
       const tail = log.trim().split('\n').slice(-50).join('\n');
       assert.fail(
-        `"${READY_LINE}" was not logged within ${TIMEOUT_SECONDS} seconds. Last app log lines:\n${tail}`,
+        `${label}: "${READY_LINE}" was not logged within ${TIMEOUT_SECONDS} seconds. Last app log lines:\n${tail}`,
       );
     }
     await sleep(2_000);
     log = readLog();
   }
-  console.log(`${PLATFORM} launch check passed: ${READY_LINE}`);
+  console.log(`${label} launch check passed: ${READY_LINE}`);
 }
 
 // Returns the serial of the one running Android emulator.
@@ -330,16 +364,20 @@ async function launchAndroid() {
   const serial = runningEmulator();
   const adb = (...arguments_) =>
     runOrThrow('adb', ['-s', serial, ...arguments_]);
-  try {
-    adb('install', '-r', APK);
-    adb('logcat', '-c');
-    adb('shell', 'am', 'start', '-W', '-n', `${APP_ID}/.MainActivity`);
-    await waitForReady(() =>
-      adb('logcat', '-d', '-s', 'ReactNativeJS', 'AndroidRuntime'),
-    );
-  } finally {
-    run('adb', ['-s', serial, 'shell', 'am', 'force-stop', APP_ID]);
-    run('adb', ['-s', serial, 'uninstall', APP_ID]);
+  for (const release of ANDROID_RELEASES) {
+    console.log(`Launching Android ${release.name} Release: ${release.apk}`);
+    try {
+      adb('install', '-r', release.apk);
+      adb('logcat', '-c');
+      adb('shell', 'am', 'start', '-W', '-n', `${APP_ID}/.MainActivity`);
+      await waitForReady(
+        () => adb('logcat', '-d', '-s', 'ReactNativeJS', 'AndroidRuntime'),
+        `android ${release.name}`,
+      );
+    } finally {
+      run('adb', ['-s', serial, 'shell', 'am', 'force-stop', APP_ID]);
+      run('adb', ['-s', serial, 'uninstall', APP_ID]);
+    }
   }
 }
 
