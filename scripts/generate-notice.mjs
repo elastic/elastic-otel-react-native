@@ -104,19 +104,19 @@ export function isGreenLicense(expression) {
 }
 
 function readMatching(directory, pattern) {
-  const file = readdirSync(directory)
+  return readdirSync(directory)
     .sort()
-    .find((name) => pattern.test(name));
-  return file ? readFileSync(join(directory, file), 'utf8') : null;
+    .filter((name) => pattern.test(name))
+    .map((name) => readFileSync(join(directory, name), 'utf8'));
 }
 
 function readLicense(directory) {
-  const license = readMatching(
+  const licenses = readMatching(
     directory,
     /^(LICENSE|LICENCE|UNLICENSE|COPYING)(\..*)?$/i,
-  );
-  if (license?.trim()) return license;
-  const readme = readMatching(directory, /^README\.md$/i);
+  ).filter((text) => text.trim());
+  if (licenses.length) return licenses.join('\n\n');
+  const [readme] = readMatching(directory, /^README\.md$/i);
   const match = readme?.match(
     /^## License\s*\r?\n([\s\S]*?)(?=^#{1,2} |$(?![\s\S]))/im,
   );
@@ -180,7 +180,7 @@ function runtimePackages() {
         license: dependency.license,
         licenseText,
         repository: repository ?? dependency.homepage ?? '',
-        notice: readMatching(installed, /^NOTICE(\..*)?$/i),
+        notice: readMatching(installed, /^NOTICE(\..*)?$/i)[0] ?? null,
       });
       visit(child, installed);
     }
