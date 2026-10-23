@@ -43,6 +43,24 @@ test.each([
   ['MIT OR', false],
   ['(MIT', false],
   ['MIT GPL-3.0-only', false],
+  ['MIT OR (GPL-2.0-only WITH Classpath-exception-2.0)', true],
+  ['(GPL-2.0-only WITH Classpath-exception-2.0) OR MIT', true],
+  ['GPL-2.0-only WITH Classpath-exception-2.0 OR MIT', true],
+  ['MIT WITH Classpath-exception-2.0', false],
+  ['GPL-2.0-only WITH Classpath-exception-2.0', false],
+  ['MIT AND (GPL-2.0-only WITH Classpath-exception-2.0)', false],
+  ['MIT OR (GPL-2.0-only WITH)', false],
+  ['MIT OR GPL-2.0-only WITH', false],
+  ['GPL-2.0-only WITH OR MIT', false],
+  ['MIT OR GPL-2.0-only WITH (Classpath-exception-2.0)', false],
+  [
+    'MIT OR GPL-2.0-only WITH Classpath-exception-2.0 WITH Other-exception',
+    false,
+  ],
+  ['MIT OR (GPL-2.0-only WITH AND MIT)', false],
+  ['WITH OR MIT', false],
+  ['(MIT OR GPL-2.0-only) WITH Classpath-exception-2.0', false],
+  ['MIT OR (GPL-2.0-only WITH Classpath-exception-2.0) trailing', false],
 ])('license expression %p is Green: %p', (expression, expected) => {
   const result = execFileSync(
     process.execPath,
@@ -163,5 +181,86 @@ test('notice includes every license text deterministically and retains fallbacks
     const fallback = readFileSync(join(root, 'NOTICE.txt'), 'utf8');
     expect(fallback).toContain('README fallback license text');
     expect(fallback).not.toContain('Not a license');
+  });
+});
+
+test('notice skips omitted optionals while enforcing installed and required dependencies', () => {
+  withScriptFixture('generate-notice.mjs', (root, run) => {
+    const manifest = {
+      name: 'fixture',
+      version: '1.0.0',
+      optionalDependencies: { 'optional-probe': 'file:./optional-package' },
+    };
+    const writeManifest = () =>
+      writeFileSync(join(root, 'package.json'), JSON.stringify(manifest));
+    writeManifest();
+    const optionalSource = join(root, 'optional-package');
+    mkdirSync(optionalSource);
+    const optionalManifest = {
+      name: 'optional-probe',
+      version: '1.0.0',
+      license: 'MIT',
+    };
+    writeFileSync(
+      join(optionalSource, 'package.json'),
+      JSON.stringify(optionalManifest),
+    );
+    writeFileSync(
+      join(optionalSource, 'LICENSE'),
+      'Optional MIT license text\n',
+    );
+    execFileSync(
+      'npm',
+      [
+        'install',
+        '--omit=optional',
+        '--offline',
+        '--ignore-scripts',
+        '--no-audit',
+        '--no-fund',
+      ],
+      { cwd: root, stdio: 'pipe' },
+    );
+    const tree = JSON.parse(
+      execFileSync('npm', ['ls', '--omit=dev', '--all', '--json'], {
+        cwd: root,
+        encoding: 'utf8',
+      }),
+    );
+    expect(tree.dependencies['optional-probe']).toEqual({});
+    run('--check');
+    run('--generate');
+    expect(readFileSync(join(root, 'NOTICE.txt'), 'utf8')).not.toContain(
+      'optional-probe@',
+    );
+
+    manifest.dependencies = { 'required-probe': '1.0.0' };
+    writeManifest();
+    for (const mode of ['--check', '--generate']) {
+      expect(() => run(mode)).toThrow(/required-probe/);
+    }
+    delete manifest.dependencies;
+    manifest.optionalDependencies['optional-probe'] = '1.0.0';
+    writeManifest();
+    const installed = join(root, 'node_modules/optional-probe');
+    mkdirSync(installed, { recursive: true });
+    writeFileSync(
+      join(installed, 'package.json'),
+      JSON.stringify(optionalManifest),
+    );
+    copyFileSync(join(optionalSource, 'LICENSE'), join(installed, 'LICENSE'));
+    run('--check');
+    run('--generate');
+    const notice = readFileSync(join(root, 'NOTICE.txt'), 'utf8');
+    expect(notice).toContain('optional-probe@1.0.0');
+    expect(notice).toContain('Optional MIT license text');
+    optionalManifest.license = 'AGPL-3.0-only';
+    writeFileSync(
+      join(installed, 'package.json'),
+      JSON.stringify(optionalManifest),
+    );
+    for (const mode of ['--check', '--generate']) {
+      expect(() => run(mode)).toThrow(/license is not Green/);
+    }
   });
 });

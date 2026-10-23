@@ -73,8 +73,21 @@ export function isGreenLicense(expression) {
       if (tokens[cursor++] !== ')') throw new Error('Unclosed license group');
       return result;
     }
-    if (!token || ['AND', 'OR', ')'].includes(token))
+    if (!token || ['AND', 'OR', 'WITH', ')'].includes(token))
       throw new Error('Expected license');
+    if (tokens[cursor] === 'WITH') {
+      cursor++;
+      const exception = tokens[cursor++];
+      if (
+        !exception ||
+        !/^[A-Za-z0-9.-]+$/.test(exception) ||
+        ['AND', 'OR', 'WITH'].includes(exception)
+      ) {
+        throw new Error('Expected license exception');
+      }
+      // An exception changes the terms; no such combination is approved Green.
+      return false;
+    }
     return green.has(token);
   }
   function and() {
@@ -156,6 +169,12 @@ function runtimePackages() {
     };
     for (const [name, child] of Object.entries(node.dependencies ?? {})) {
       if (!Object.hasOwn(runtime, name)) continue;
+      if (
+        Object.hasOwn(manifest.optionalDependencies ?? {}, name) &&
+        Object.keys(child).length === 0
+      ) {
+        continue;
+      }
       const installed = packageDirectory(name, directory);
       if (visited.has(installed)) continue;
       visited.add(installed);
