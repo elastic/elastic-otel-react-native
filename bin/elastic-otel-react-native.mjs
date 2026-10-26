@@ -206,8 +206,7 @@ const PODFILE_PATTERNS = [
   /^\s*react_native_post_install\(\s*$/m,
 ];
 
-const IOS_HOST_STEPS =
-  'Set the deployment target to iOS 16 or later and install pods with USE_FRAMEWORKS=dynamic.';
+const IOS_HOST_STEPS = 'Install pods with USE_FRAMEWORKS=dynamic.';
 
 // Returns the diagnostics and, when there are none, the path of the single
 // Xcode project file.
@@ -316,8 +315,8 @@ function printManualConfigFileStep() {
 }
 
 // setup-ios checks the project layout and adds elastic-otel-config.json to the
-// app target as a resource reference. The other EDOT iOS host steps are in the
-// getting-started guide (deployment target 16 and dynamic frameworks).
+// app target as a resource reference. The other EDOT iOS host step is in the
+// getting-started guide (dynamic frameworks).
 async function setupIos() {
   const { diagnostics, projectPath } = await iosDiagnostics();
   if (diagnostics.length > 0) {

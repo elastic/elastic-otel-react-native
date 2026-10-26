@@ -21,7 +21,7 @@ Kibana. For an Expo application, see
 | React Native           | 0.80                                     |
 | Android API level      | 26, or 24 with Java 8 library desugaring |
 | Android compile SDK    | 36                                       |
-| iOS                    | 16                                       |
+| iOS                    | 15.1                                     |
 | Expo SDK, in Expo apps | 57                                       |
 
 The build enforces these minimums. Below Android API level 26 without
@@ -54,8 +54,8 @@ You also need an OTLP endpoint to send telemetry to; see
 | EDOT Android          | 1.10.0                                      |
 | Xcode                 | 27.0                                        |
 | CocoaPods             | 1.16.2                                      |
-| iOS deployment target | 16.0                                        |
-| EDOT iOS              | 2.2.0 (`ElasticApm` SwiftPM product)        |
+| iOS deployment target | 15.1                                        |
+| EDOT iOS              | 2.3.0 (`ElasticApm` SwiftPM product)        |
 | Expo SDK              | 57 (`expo` 57.0.27, `@expo/cli` 57.0.28)    |
 | React Native for Expo | 0.86.3                                      |
 
@@ -134,11 +134,8 @@ review the change with `git diff`.
 The command never edits `AppDelegate`, the Podfile, credentials, endpoints,
 bundle identifiers, signing settings, or other Xcode project content.
 
-Complete two more steps by hand:
+Complete one more step by hand:
 
-- Set the Podfile platform and every application deployment target in Xcode
-  to iOS 16 or later. Below that, Xcode stops with
-  `compiling for iOS 15.1, but module 'ElasticOtelReactNative' has a minimum deployment target of iOS 16.0`.
 - Install pods with dynamic frameworks:
 
   ```sh
@@ -290,7 +287,7 @@ apply from: "../../node_modules/@elastic/otel-react-native/android/elastic-otel.
 For iOS, add `elastic-otel-config.json` from the project root to the app
 target in Xcode as a reference, without copying it into the `ios` directory.
 Check that the file is listed in the target's Copy Bundle Resources build
-phase. Then complete the two manual steps in [Set up iOS](#set-up-ios).
+phase. Then complete the manual step in [Set up iOS](#set-up-ios).
 
 ## Bootstrap before React Native
 
@@ -450,8 +447,7 @@ hierarchy and timing.
    configuration Gradle script line, the `elastic-otel-config.json` reference
    in the Xcode app target, and `elastic-otel-config.json`.
 3. Remove the iOS Podfile line that forces dynamic frameworks only if no other
-   dependency needs it; choose any new deployment target based on the remaining
-   application dependencies.
+   dependency needs it.
 4. Remove the `@elastic/otel-react-native/babel-plugin` entry from
    `babel.config.js` if you added it.
 5. Uninstall `@elastic/otel-react-native`.
