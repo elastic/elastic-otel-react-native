@@ -185,142 +185,132 @@ test('notice includes every license text deterministically and retains fallbacks
   });
 });
 
-test('notice skips omitted optionals while enforcing installed and required dependencies', () => {
+test('notice skips absent optionals and checks installed dependencies', () => {
   withScriptFixture('generate-notice.mjs', (root, run) => {
     const manifest = {
       name: 'fixture',
       version: '1.0.0',
-      optionalDependencies: { 'optional-probe': 'file:./optional-package' },
+      optionalDependencies: { optional: '1.0.0' },
     };
     const writeManifest = () =>
       writeFileSync(join(root, 'package.json'), JSON.stringify(manifest));
     writeManifest();
-    const optionalSource = join(root, 'optional-package');
-    mkdirSync(optionalSource);
-    const optionalManifest = {
-      name: 'optional-probe',
-      version: '1.0.0',
-      license: 'MIT',
-    };
-    writeFileSync(
-      join(optionalSource, 'package.json'),
-      JSON.stringify(optionalManifest),
-    );
-    writeFileSync(
-      join(optionalSource, 'LICENSE'),
-      'Optional MIT license text\n',
-    );
-    execFileSync(
-      'npm',
-      [
-        'install',
-        '--omit=optional',
-        '--offline',
-        '--ignore-scripts',
-        '--no-audit',
-        '--no-fund',
-      ],
-      { cwd: root, stdio: 'pipe' },
-    );
-    const tree = JSON.parse(
-      execFileSync('npm', ['ls', '--omit=dev', '--all', '--json'], {
-        cwd: root,
-        encoding: 'utf8',
-      }),
-    );
-    expect(tree.dependencies['optional-probe']).toEqual({});
     run('--check');
     run('--generate');
     expect(readFileSync(join(root, 'NOTICE.txt'), 'utf8')).not.toContain(
-      'optional-probe@',
+      'optional@',
     );
 
-    manifest.dependencies = { 'required-probe': '1.0.0' };
+    manifest.dependencies = { required: '1.0.0' };
     writeManifest();
-    for (const mode of ['--check', '--generate']) {
-      expect(() => run(mode)).toThrow(/required-probe/);
-    }
+    for (const mode of ['--check', '--generate'])
+      expect(() => run(mode)).toThrow(/required: installed package not found/);
     delete manifest.dependencies;
-    manifest.optionalDependencies['optional-probe'] = '1.0.0';
     writeManifest();
-    const installed = join(root, 'node_modules/optional-probe');
-    mkdirSync(installed, { recursive: true });
-    writeFileSync(
-      join(installed, 'package.json'),
-      JSON.stringify(optionalManifest),
-    );
-    copyFileSync(join(optionalSource, 'LICENSE'), join(installed, 'LICENSE'));
+    const directory = join(root, 'node_modules/optional');
+    mkdirSync(directory, { recursive: true });
+    const optional = { name: 'optional', version: '1.0.0', license: 'MIT' };
+    writeFileSync(join(directory, 'package.json'), JSON.stringify(optional));
+    writeFileSync(join(directory, 'LICENSE'), 'Optional MIT license text\n');
     run('--check');
     run('--generate');
-    const notice = readFileSync(join(root, 'NOTICE.txt'), 'utf8');
-    expect(notice).toContain('optional-probe@1.0.0');
-    expect(notice).toContain('Optional MIT license text');
-    optionalManifest.license = 'AGPL-3.0-only';
-    writeFileSync(
-      join(installed, 'package.json'),
-      JSON.stringify(optionalManifest),
+    expect(readFileSync(join(root, 'NOTICE.txt'), 'utf8')).toContain(
+      'optional@1.0.0',
     );
-    for (const mode of ['--check', '--generate']) {
-      expect(() => run(mode)).toThrow(/license is not Green/);
-    }
+    optional.license = 'AGPL-3.0-only';
+    writeFileSync(join(directory, 'package.json'), JSON.stringify(optional));
+    for (const mode of ['--check', '--generate'])
+      expect(() => run(mode)).toThrow(/optional@1.0.0: license is not Green/);
   });
 });
 
-test('notice traverses later expanded shared dependencies and finite cycles', () => {
+test('notice follows runtime manifests through shared packages and cycles, excluding peers', () => {
   withScriptFixture('generate-notice.mjs', (root, run) => {
-    const writePackage = (directory, name, dependencies, license = 'MIT') => {
+    const writePackage = (
+      directory,
+      name,
+      dependencies = {},
+      license = 'MIT',
+      version = '1.0.0',
+      peers = {},
+    ) => {
       mkdirSync(directory, { recursive: true });
       writeFileSync(
         join(directory, 'package.json'),
-        JSON.stringify({ name, version: '1.0.0', license, dependencies }),
+        JSON.stringify({
+          name,
+          version,
+          license,
+          dependencies,
+          peerDependencies: peers,
+        }),
       );
       writeFileSync(
         join(directory, 'LICENSE'),
-        `${name} distinct license text\n`,
+        `${name}@${version} distinct license text\n`,
       );
     };
-    writePackage(root, 'fixture', { alpha: '1.0.0', shared: '1.0.0' });
-    writePackage(join(root, 'node_modules/alpha'), 'alpha', {
+    writePackage(root, 'fixture', { beta: '1.0.0' }, 'MIT', '1.0.0', {
+      alpha: '1.0.0',
+    });
+    writePackage(
+      join(root, 'node_modules/alpha'),
+      'alpha',
+      { shared: '1.0.0' },
+      'AGPL-3.0-only',
+    );
+    writePackage(join(root, 'node_modules/beta'), 'beta', { gamma: '1.0.0' });
+    writePackage(join(root, 'node_modules/gamma'), 'gamma', {
       shared: '1.0.0',
     });
     const shared = join(root, 'node_modules/shared');
     const leaf = join(root, 'node_modules/leaf');
     writePackage(shared, 'shared', { leaf: '1.0.0' });
-    writePackage(leaf, 'leaf', {});
-    const tree = JSON.parse(
-      execFileSync('npm', ['ls', '--omit=dev', '--all', '--json'], {
-        cwd: root,
-        encoding: 'utf8',
-        timeout: 10000,
-      }),
-    );
-    expect(
-      tree.dependencies.alpha.dependencies.shared.dependencies,
-    ).toBeUndefined();
-    expect(tree.dependencies.shared.dependencies.leaf.version).toBe('1.0.0');
-
-    const expectCompleteNotice = () => {
+    writePackage(leaf, 'leaf');
+    const expectNotice = (labels) => {
       const notice = readFileSync(join(root, 'NOTICE.txt'), 'utf8');
-      for (const name of ['alpha', 'shared', 'leaf']) {
-        expect(notice).toContain(`${name}@1.0.0`);
-        expect(notice.split(`${name} distinct license text`)).toHaveLength(2);
-      }
+      for (const label of labels)
+        expect(notice.split(`${label} distinct license text`)).toHaveLength(2);
+      expect(notice).not.toContain('alpha@1.0.0');
+      expect(notice).not.toContain('fixture@1.0.0');
       return notice;
     };
-    expect(run('--check')).toContain('3 runtime package licenses');
+    const labels = ['beta@1.0.0', 'gamma@1.0.0', 'shared@1.0.0', 'leaf@1.0.0'];
+    run('--check');
     run('--generate');
-    const first = expectCompleteNotice();
+    const first = expectNotice(labels);
     run('--generate');
-    expect(expectCompleteNotice()).toBe(first);
-
+    expect(expectNotice(labels)).toBe(first);
     writePackage(leaf, 'leaf', {}, 'AGPL-3.0-only');
-    for (const mode of ['--check', '--generate']) {
+    for (const mode of ['--check', '--generate'])
       expect(() => run(mode)).toThrow(/leaf@1.0.0: license is not Green/);
-    }
-    writePackage(leaf, 'leaf', {});
-    writePackage(shared, 'shared', { alpha: '1.0.0', leaf: '1.0.0' });
-    expect(run('--check')).toContain('3 runtime package licenses');
+
+    writePackage(leaf, 'leaf');
+    writePackage(shared, 'shared', { leaf: '1.0.0', beta: '1.0.0' });
+    run('--check');
     run('--generate');
-    expectCompleteNotice();
+    expectNotice(labels);
+
+    // A second installed version has its own runtime dependencies and checks.
+    writePackage(
+      root,
+      'fixture',
+      { beta: '1.0.0', delta: '1.0.0' },
+      'MIT',
+      '1.0.0',
+      { alpha: '1.0.0' },
+    );
+    const delta = join(root, 'node_modules/delta');
+    writePackage(delta, 'delta', { shared: '2.0.0' });
+    const secondShared = join(delta, 'node_modules/shared');
+    const secondLeaf = join(secondShared, 'node_modules/leaf');
+    writePackage(secondShared, 'shared', { leaf: '2.0.0' }, 'MIT', '2.0.0');
+    writePackage(secondLeaf, 'leaf', {}, 'MIT', '2.0.0');
+    run('--check');
+    run('--generate');
+    expectNotice([...labels, 'delta@1.0.0', 'shared@2.0.0', 'leaf@2.0.0']);
+    writePackage(secondLeaf, 'leaf', {}, 'AGPL-3.0-only', '2.0.0');
+    for (const mode of ['--check', '--generate'])
+      expect(() => run(mode)).toThrow(/leaf@2.0.0: license is not Green/);
   });
 });

@@ -16,7 +16,6 @@
  * limitations under the License.
  */
 
-import { execFileSync } from 'node:child_process';
 import {
   existsSync,
   readFileSync,
@@ -136,77 +135,67 @@ function readLicense(directory) {
   return match?.[1]?.trim() ? match[1] : null;
 }
 
-function packageDirectory(name, from) {
+function packageDirectory(name, from, optional = false) {
   let directory = from;
   while (true) {
     const candidate = join(directory, 'node_modules', name);
     if (existsSync(join(candidate, 'package.json')))
       return realpathSync(candidate);
     const parent = dirname(directory);
-    if (parent === directory)
+    if (parent === directory) {
+      if (optional) return null;
       throw new Error(`${name}: installed package not found`);
+    }
     directory = parent;
   }
 }
 
 function runtimePackages() {
-  const tree = JSON.parse(
-    execFileSync('npm', ['ls', '--omit=dev', '--all', '--json'], {
-      cwd: root,
-      encoding: 'utf8',
-    }),
-  );
   const packages = new Map();
-  const validated = new Set();
-  function visit(node, directory) {
+  const visited = new Set([realpathSync(root)]);
+  function visit(directory) {
     const manifest = JSON.parse(
       readFileSync(join(directory, 'package.json'), 'utf8'),
     );
-    // Follow runtime declarations only: npm's tree can also include peers.
     const runtime = {
       ...manifest.dependencies,
       ...manifest.optionalDependencies,
     };
-    for (const [name, child] of Object.entries(node.dependencies ?? {})) {
-      if (!Object.hasOwn(runtime, name)) continue;
-      if (
-        Object.hasOwn(manifest.optionalDependencies ?? {}, name) &&
-        Object.keys(child).length === 0
-      ) {
-        continue;
-      }
-      const installed = packageDirectory(name, directory);
-      if (!validated.has(installed)) {
-        validated.add(installed);
-        const dependency = JSON.parse(
-          readFileSync(join(installed, 'package.json'), 'utf8'),
+    for (const name of Object.keys(runtime)) {
+      const installed = packageDirectory(
+        name,
+        directory,
+        Object.hasOwn(manifest.optionalDependencies ?? {}, name),
+      );
+      if (!installed || visited.has(installed)) continue;
+      visited.add(installed);
+      const dependency = JSON.parse(
+        readFileSync(join(installed, 'package.json'), 'utf8'),
+      );
+      const label = `${name}@${dependency.version}`;
+      if (!dependency.license) throw new Error(`${label}: missing license`);
+      if (!isGreenLicense(dependency.license)) {
+        throw new Error(
+          `${label}: license is not Green: ${dependency.license}`,
         );
-        const label = `${name}@${dependency.version}`;
-        if (!dependency.license) throw new Error(`${label}: missing license`);
-        if (!isGreenLicense(dependency.license)) {
-          throw new Error(
-            `${label}: license is not Green: ${dependency.license}`,
-          );
-        }
-        const licenseText = readLicense(installed);
-        if (!licenseText) throw new Error(`${label}: no license text found`);
-        const repository =
-          typeof dependency.repository === 'string'
-            ? dependency.repository
-            : dependency.repository?.url;
-        packages.set(label, {
-          label,
-          license: dependency.license,
-          licenseText,
-          repository: repository ?? dependency.homepage ?? '',
-          notice: readMatching(installed, /^NOTICE(\..*)?$/i)[0] ?? null,
-        });
       }
-      // npm may expand a shared package only at a later JSON occurrence.
-      visit(child, installed);
+      const licenseText = readLicense(installed);
+      if (!licenseText) throw new Error(`${label}: no license text found`);
+      const repository =
+        typeof dependency.repository === 'string'
+          ? dependency.repository
+          : dependency.repository?.url;
+      packages.set(label, {
+        label,
+        license: dependency.license,
+        licenseText,
+        repository: repository ?? dependency.homepage ?? '',
+        notice: readMatching(installed, /^NOTICE(\..*)?$/i)[0] ?? null,
+      });
+      visit(installed);
     }
   }
-  visit(tree, root);
+  visit(root);
   return [...packages.values()].sort((a, b) =>
     a.label < b.label ? -1 : a.label > b.label ? 1 : 0,
   );
