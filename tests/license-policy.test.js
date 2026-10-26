@@ -43,6 +43,16 @@ test.each([
   ['MIT OR', false],
   ['(MIT', false],
   ['MIT GPL-3.0-only', false],
+  ['MIT OR ???', false],
+  ['??? OR MIT', false],
+  ['MIT OR /', false],
+  ['/ OR MIT', false],
+  ['MIT OR GPL-3.0-only;', false],
+  ['GPL-3.0-only; OR MIT', false],
+  ['MIT OR Unknown-1.0', true],
+  ['MIT OR LicenseRef-Custom', true],
+  ['MIT OR DocumentRef-Package:LicenseRef-Custom', true],
+  ['MIT OR GPL-2.0+', true],
   ['MIT OR (GPL-2.0-only WITH Classpath-exception-2.0)', true],
   ['(GPL-2.0-only WITH Classpath-exception-2.0) OR MIT', true],
   ['GPL-2.0-only WITH Classpath-exception-2.0 OR MIT', true],
@@ -132,7 +142,7 @@ test.each([
   },
 );
 
-test('notice includes every license text deterministically and retains fallbacks', () => {
+test('notice includes dot and hyphen license filenames deterministically and retains fallbacks', () => {
   withScriptFixture('generate-notice.mjs', (root, run) => {
     writeFileSync(
       join(root, 'package.json'),
@@ -155,7 +165,7 @@ test('notice includes every license text deterministically and retains fallbacks
     const apache = 'Distinct Apache license text\n';
     const mit = 'Distinct MIT license text\n';
     writeFileSync(join(dependency, 'LICENSE.MIT'), mit);
-    writeFileSync(join(dependency, 'LICENSE.Apache-2.0'), apache);
+    writeFileSync(join(dependency, 'LICENSE-APACHE'), apache);
     writeFileSync(
       join(dependency, 'NOTICE.extra'),
       'Other notice must not be selected',
@@ -171,7 +181,7 @@ test('notice includes every license text deterministically and retains fallbacks
     expect(notice).not.toContain('Other notice must not be selected');
     run('--generate');
     expect(readFileSync(join(root, 'NOTICE.txt'), 'utf8')).toBe(notice);
-    rmSync(join(dependency, 'LICENSE.Apache-2.0'));
+    rmSync(join(dependency, 'LICENSE-APACHE'));
     rmSync(join(dependency, 'LICENSE.MIT'));
     writeFileSync(
       join(dependency, 'README.md'),

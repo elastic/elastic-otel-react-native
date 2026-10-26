@@ -72,8 +72,15 @@ export function isGreenLicense(expression) {
       if (tokens[cursor++] !== ')') throw new Error('Unclosed license group');
       return result;
     }
-    if (!token || ['AND', 'OR', 'WITH', ')'].includes(token))
+    if (
+      !token ||
+      ['AND', 'OR', 'WITH', ')'].includes(token) ||
+      !/^(?:[A-Za-z0-9.-]+\+?|DocumentRef-[A-Za-z0-9.-]+:LicenseRef-[A-Za-z0-9.-]+)$/.test(
+        token,
+      )
+    ) {
       throw new Error('Expected license');
+    }
     if (tokens[cursor] === 'WITH') {
       cursor++;
       const exception = tokens[cursor++];
@@ -125,7 +132,7 @@ function readMatching(directory, pattern) {
 function readLicense(directory) {
   const licenses = readMatching(
     directory,
-    /^(LICENSE|LICENCE|UNLICENSE|COPYING)(\..*)?$/i,
+    /^(LICENSE|LICENCE|UNLICENSE|COPYING)([.-].*)?$/i,
   ).filter((text) => text.trim());
   if (licenses.length) return licenses.join('\n\n');
   const [readme] = readMatching(directory, /^README\.md$/i);
