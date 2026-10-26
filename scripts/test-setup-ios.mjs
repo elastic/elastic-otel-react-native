@@ -40,19 +40,9 @@ async function copyDefaultTemplate(destination) {
   const podfile = join(destination, PODFILE);
   await writeFile(
     podfile,
-    (await readFile(podfile, 'utf8'))
-      .replace(
-        "platform :ios, '16.0'",
-        'platform :ios, min_ios_version_supported',
-      )
-      .replace("ENV['USE_FRAMEWORKS'] = 'dynamic'\n", ''),
-  );
-  const project = join(destination, PROJECT);
-  await writeFile(
-    project,
-    (await readFile(project, 'utf8')).replaceAll(
-      'IPHONEOS_DEPLOYMENT_TARGET = 16.0;',
-      'IPHONEOS_DEPLOYMENT_TARGET = 15.1;',
+    (await readFile(podfile, 'utf8')).replace(
+      "ENV['USE_FRAMEWORKS'] = 'dynamic'\n",
+      '',
     ),
   );
 }
@@ -149,6 +139,7 @@ async function verifyFreshProject(name, mutate = async () => {}) {
   assert.match(run.output, new RegExp(`Updated ${PROJECT}\n`));
   assert.match(run.output, /Review the changes with git diff\./);
   assert.match(run.output, /USE_FRAMEWORKS=dynamic/);
+  assert.doesNotMatch(run.output, /deployment target/i);
   const configured = await snapshot(project);
   assert.deepEqual(changedPaths(original, configured), [PROJECT]);
   assertConfigFileReference(project);
@@ -157,6 +148,7 @@ async function verifyFreshProject(name, mutate = async () => {}) {
   const rerun = runCli(project);
   assert.equal(rerun.exitCode, 0, rerun.output);
   assert.match(rerun.output, /EDOT iOS is already configured\./);
+  assert.doesNotMatch(rerun.output, /deployment target/i);
   assert.deepEqual(await snapshot(project), configured);
 }
 
@@ -181,6 +173,7 @@ async function verifyHandAddedReference() {
   const run = runCli(project);
   assert.equal(run.exitCode, 0, run.output);
   assert.match(run.output, /EDOT iOS is already configured\./);
+  assert.doesNotMatch(run.output, /deployment target/i);
   assert.deepEqual(await snapshot(project), before);
 }
 

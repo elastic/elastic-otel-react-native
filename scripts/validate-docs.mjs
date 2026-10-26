@@ -243,7 +243,7 @@ for (const [component, version] of [
   // The EDOT Android row is checked by scripts/check-edot-versions.mjs.
   ['Xcode', '27.0'],
   ['CocoaPods', '1.16.2'],
-  ['iOS deployment target', '16.0'],
+  ['iOS deployment target', '15.1'],
   ['EDOT iOS', `${EDOT_IOS_VERSION} (\`ElasticApm\` SwiftPM product)`],
   [
     'Expo SDK',

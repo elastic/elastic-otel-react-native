@@ -14,7 +14,7 @@ Pod::Spec.new do |spec|
     :tag => spec.version.to_s
   }
 
-  spec.platform = :ios, '16.0'
+  spec.platform = :ios, '15.1'
   spec.source_files = 'ios/Sources/**/*.{m,swift}'
   spec.dependency 'React-Core'
   spec.swift_version = '5.10'
@@ -27,7 +27,7 @@ Pod::Spec.new do |spec|
     url: 'https://github.com/elastic/apm-agent-ios.git',
     requirement: {
       kind: 'exactVersion',
-      version: '2.2.0'
+      version: '2.3.0'
     },
     products: ['ElasticApm']
   )

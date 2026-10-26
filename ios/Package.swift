@@ -5,7 +5,7 @@ import PackageDescription
 let package = Package(
   name: "ElasticOtelReactNativeCore",
   platforms: [
-    .iOS(.v16),
+    .iOS("15.1"),
     .macOS(.v13),
   ],
   products: [
@@ -17,7 +17,7 @@ let package = Package(
   dependencies: [
     .package(
       url: "https://github.com/elastic/apm-agent-ios.git",
-      exact: "2.2.0"
+      exact: "2.3.0"
     ),
     .package(
       url: "https://github.com/open-telemetry/opentelemetry-swift-core",
