@@ -49,7 +49,8 @@
     "android/library/src/main",
     "react-native.config.js",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "NOTICE.txt"
   ],
   "scripts": {
     "format:check": "prettier --check README.md package.json babel-plugin.cjs babel-plugin.d.cts app.plugin.js setup-edits.cjs react-native.config.js src tests bin scripts docs fixture/index.ts fixture/tsconfig.json expo-fixture/index.js expo-fixture/babel.config.js expo-fixture/app.json expo-fixture/elastic-otel-config.json",
@@ -70,14 +71,18 @@
     "fixture:verify-autolinking": "node scripts/verify-fixture-autolinking.mjs",
     "edot:check": "node scripts/check-edot-versions.mjs",
     "lockfile:check": "node scripts/check-lockfiles.mjs",
-    "validate:js-android": "npm run edot:check && npm run lockfile:check && npm run format:check && npm run typecheck && npm run build:types && npm test && npm run android:test && npm run setup:test && npm run setup:ios:test && npm run fixture:typecheck && npm run docs:check && npm run pack:check && npm run fixture:build",
+    "validate:js-android": "npm run headers:check && npm run licenses:check && npm run edot:check && npm run lockfile:check && npm run format:check && npm run typecheck && npm run build:types && npm test && npm run android:test && npm run setup:test && npm run setup:ios:test && npm run fixture:typecheck && npm run docs:check && npm run pack:check && npm run fixture:build",
     "validate:ios": "npm run ios:test && npm run fixture:ios:build && npm run fixture:verify-autolinking",
     "validate:expo:android": "node scripts/expo-fixture.mjs build android",
     "validate:expo:ios": "node scripts/expo-fixture.mjs build ios",
     "validate:expo": "npm run validate:expo:android && npm run validate:expo:ios",
     "validate": "npm run validate:js-android && npm run validate:ios && npm run validate:expo",
     "test:expo-launch:android": "node scripts/expo-fixture.mjs launch android",
-    "test:expo-launch:ios": "node scripts/expo-fixture.mjs launch ios"
+    "test:expo-launch:ios": "node scripts/expo-fixture.mjs launch ios",
+    "headers:check": "node scripts/check-license-headers.mjs",
+    "headers:fix": "node scripts/check-license-headers.mjs --fix",
+    "notice:generate": "node scripts/generate-notice.mjs --generate",
+    "licenses:check": "node scripts/generate-notice.mjs --check"
   },
   "peerDependencies": {
     "expo": ">=57.0.0",
