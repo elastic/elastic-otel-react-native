@@ -157,7 +157,7 @@ function runtimePackages() {
     }),
   );
   const packages = new Map();
-  const visited = new Set();
+  const validated = new Set();
   function visit(node, directory) {
     const manifest = JSON.parse(
       readFileSync(join(directory, 'package.json'), 'utf8'),
@@ -176,31 +176,33 @@ function runtimePackages() {
         continue;
       }
       const installed = packageDirectory(name, directory);
-      if (visited.has(installed)) continue;
-      visited.add(installed);
-      const dependency = JSON.parse(
-        readFileSync(join(installed, 'package.json'), 'utf8'),
-      );
-      const label = `${name}@${dependency.version}`;
-      if (!dependency.license) throw new Error(`${label}: missing license`);
-      if (!isGreenLicense(dependency.license)) {
-        throw new Error(
-          `${label}: license is not Green: ${dependency.license}`,
+      if (!validated.has(installed)) {
+        validated.add(installed);
+        const dependency = JSON.parse(
+          readFileSync(join(installed, 'package.json'), 'utf8'),
         );
+        const label = `${name}@${dependency.version}`;
+        if (!dependency.license) throw new Error(`${label}: missing license`);
+        if (!isGreenLicense(dependency.license)) {
+          throw new Error(
+            `${label}: license is not Green: ${dependency.license}`,
+          );
+        }
+        const licenseText = readLicense(installed);
+        if (!licenseText) throw new Error(`${label}: no license text found`);
+        const repository =
+          typeof dependency.repository === 'string'
+            ? dependency.repository
+            : dependency.repository?.url;
+        packages.set(label, {
+          label,
+          license: dependency.license,
+          licenseText,
+          repository: repository ?? dependency.homepage ?? '',
+          notice: readMatching(installed, /^NOTICE(\..*)?$/i)[0] ?? null,
+        });
       }
-      const licenseText = readLicense(installed);
-      if (!licenseText) throw new Error(`${label}: no license text found`);
-      const repository =
-        typeof dependency.repository === 'string'
-          ? dependency.repository
-          : dependency.repository?.url;
-      packages.set(label, {
-        label,
-        license: dependency.license,
-        licenseText,
-        repository: repository ?? dependency.homepage ?? '',
-        notice: readMatching(installed, /^NOTICE(\..*)?$/i)[0] ?? null,
-      });
+      // npm may expand a shared package only at a later JSON occurrence.
       visit(child, installed);
     }
   }

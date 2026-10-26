@@ -87,6 +87,7 @@ function withScriptFixture(script, action) {
       execFileSync(process.execPath, [join(root, 'scripts', script), ...args], {
         cwd: root,
         encoding: 'utf8',
+        timeout: 10000,
       });
     action(root, run);
   } finally {
@@ -262,5 +263,64 @@ test('notice skips omitted optionals while enforcing installed and required depe
     for (const mode of ['--check', '--generate']) {
       expect(() => run(mode)).toThrow(/license is not Green/);
     }
+  });
+});
+
+test('notice traverses later expanded shared dependencies and finite cycles', () => {
+  withScriptFixture('generate-notice.mjs', (root, run) => {
+    const writePackage = (directory, name, dependencies, license = 'MIT') => {
+      mkdirSync(directory, { recursive: true });
+      writeFileSync(
+        join(directory, 'package.json'),
+        JSON.stringify({ name, version: '1.0.0', license, dependencies }),
+      );
+      writeFileSync(
+        join(directory, 'LICENSE'),
+        `${name} distinct license text\n`,
+      );
+    };
+    writePackage(root, 'fixture', { alpha: '1.0.0', shared: '1.0.0' });
+    writePackage(join(root, 'node_modules/alpha'), 'alpha', {
+      shared: '1.0.0',
+    });
+    const shared = join(root, 'node_modules/shared');
+    const leaf = join(root, 'node_modules/leaf');
+    writePackage(shared, 'shared', { leaf: '1.0.0' });
+    writePackage(leaf, 'leaf', {});
+    const tree = JSON.parse(
+      execFileSync('npm', ['ls', '--omit=dev', '--all', '--json'], {
+        cwd: root,
+        encoding: 'utf8',
+        timeout: 10000,
+      }),
+    );
+    expect(
+      tree.dependencies.alpha.dependencies.shared.dependencies,
+    ).toBeUndefined();
+    expect(tree.dependencies.shared.dependencies.leaf.version).toBe('1.0.0');
+
+    const expectCompleteNotice = () => {
+      const notice = readFileSync(join(root, 'NOTICE.txt'), 'utf8');
+      for (const name of ['alpha', 'shared', 'leaf']) {
+        expect(notice).toContain(`${name}@1.0.0`);
+        expect(notice.split(`${name} distinct license text`)).toHaveLength(2);
+      }
+      return notice;
+    };
+    expect(run('--check')).toContain('3 runtime package licenses');
+    run('--generate');
+    const first = expectCompleteNotice();
+    run('--generate');
+    expect(expectCompleteNotice()).toBe(first);
+
+    writePackage(leaf, 'leaf', {}, 'AGPL-3.0-only');
+    for (const mode of ['--check', '--generate']) {
+      expect(() => run(mode)).toThrow(/leaf@1.0.0: license is not Green/);
+    }
+    writePackage(leaf, 'leaf', {});
+    writePackage(shared, 'shared', { alpha: '1.0.0', leaf: '1.0.0' });
+    expect(run('--check')).toContain('3 runtime package licenses');
+    run('--generate');
+    expectCompleteNotice();
   });
 });
