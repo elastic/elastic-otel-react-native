@@ -1,3 +1,19 @@
+# Copyright Elastic Technologies Inc. and/or licensed to
+# Elastic Technologies Inc. under one or more contributor license
+# agreements. See the NOTICE file distributed with this work for
+# additional information regarding copyright ownership.
+# Elastic Technologies Inc. licenses this file to you under the Apache
+# License, Version 2.0 (the "License"); you may not use this file except
+# in compliance with the License. You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 ---
 # $yaml-language-server: $schema=https://raw.githubusercontent.com/buildkite/pipeline-schema/main/schema.json
 steps:
@@ -18,12 +34,3 @@ steps:
       image: "docker.elastic.co/ci-agent-images/pipelib:0.35.0@sha256:4e521947861821d7607b26b95c141f47e6a8794c6b15e53b1813dafea61a557b"
     if_changed:
       - "catalog-info.yaml"
-
-  - label: ":pipeline: Upload default Pipeline"
-    command: "buildkite-agent pipeline upload .buildkite/default-pipeline.yml"
-    if_changed:
-      include:
-        - "**/*"
-      exclude:
-        - "catalog-info.yaml"
-        - "renovate.json"
