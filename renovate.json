@@ -1,0 +1,12 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["local>elastic/renovate-config"],
+  "addLabels": ["dependencies"],
+  "ignorePaths": [".github/workflows/**"],
+  "packageRules": [
+    {
+      "matchDepTypes": ["peerDependencies"],
+      "enabled": false
+    }
+  ]
+}
