@@ -24,7 +24,8 @@ Kibana. For an Expo application, see
 | iOS                    | 15.1                                     |
 | Expo SDK, in Expo apps | 57                                       |
 
-The build enforces these minimums. Below Android API level 26 without
+The table lists the minimum versions the package supports. Below Android API
+level 26 without
 [Java 8 library desugaring](https://developer.android.com/studio/write/java8-support#library-desugaring),
 the Android build stops with an EDOT React Native error that names the
 variant and its `minSdk` and gives two choices: raise `minSdk` to 26, or
@@ -39,28 +40,8 @@ in `android/app/build.gradle`.
 You also need an OTLP endpoint to send telemetry to; see
 [Export connectivity](configuration.md#export-connectivity).
 
-### Tested versions
-
-| Component             | Tested version                              |
-| --------------------- | ------------------------------------------- |
-| Node.js               | 22.23.2                                     |
-| React                 | 19.2.3                                      |
-| React Native          | 0.87.1 with Hermes and the New Architecture |
-| Android Gradle Plugin | 9.2.1                                       |
-| Gradle                | 9.4.1                                       |
-| Kotlin                | 2.2.0                                       |
-| JDK                   | Amazon Corretto 21.0.9                      |
-| Android API           | compile 37 / target 36 / minimum 26         |
-| EDOT Android          | 1.10.0                                      |
-| Xcode                 | 27.0                                        |
-| CocoaPods             | 1.16.2                                      |
-| iOS deployment target | 15.1                                        |
-| EDOT iOS              | 2.3.0 (`ElasticApm` SwiftPM product)        |
-| Expo SDK              | 57 (`expo` 57.0.27, `@expo/cli` 57.0.28)    |
-| React Native for Expo | 0.86.3                                      |
-
-The package brings in the EDOT Android and EDOT iOS releases listed here, so
-you do not add either SDK to your project yourself.
+The package brings in EDOT Android and EDOT iOS, so you do not add either SDK
+to your project yourself.
 
 ## Install the package
 
@@ -219,7 +200,7 @@ commands and do not add the native lines by hand.
    the array if needed. Keep all existing presets, including
    `babel-preset-expo`, and all other plugins.
 
-   See the [Expo SDK 57 Babel reference](https://docs.expo.dev/versions/v57.0.0/config/babel/)
+   See the [Expo Babel reference](https://docs.expo.dev/versions/latest/config/babel/)
    for details. Restart Metro with a cleared cache to apply the change:
 
    ```sh

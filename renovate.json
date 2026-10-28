@@ -3,9 +3,33 @@
   "extends": ["local>elastic/renovate-config"],
   "addLabels": ["dependencies"],
   "ignorePaths": [".github/workflows/**"],
+  "prHourlyLimit": 0,
+  "prConcurrentLimit": 0,
   "packageRules": [
     {
       "matchDepTypes": ["peerDependencies"],
+      "enabled": false
+    },
+    {
+      "description": "React Native and its @react-native packages release in lockstep, and a mixed tree fails npm ci. Each React Native minor raises its react peer floor, so react moves with them.",
+      "matchPackageNames": ["react-native", "@react-native/**", "react"],
+      "groupName": "react-native"
+    },
+    {
+      "description": "Each Expo SDK release pins its own package versions, so the Expo fixture updates as one PR, majors included.",
+      "matchFileNames": ["expo-fixture/package.json"],
+      "groupName": "expo-fixture",
+      "separateMajorMinor": false
+    },
+    {
+      "description": "The Expo SDK pins react and react-native, so the Expo fixture takes them only with an Expo update.",
+      "matchFileNames": ["expo-fixture/package.json"],
+      "matchPackageNames": ["react", "react-native"],
+      "enabled": false
+    },
+    {
+      "description": "ios/Package.swift declares only a minimum for opentelemetry-swift-core; hosts resolve its version through EDOT iOS.",
+      "matchDepNames": ["open-telemetry/opentelemetry-swift-core"],
       "enabled": false
     }
   ]

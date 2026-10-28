@@ -21,6 +21,7 @@ expo-fixture/ios/
 expo-fixture/.expo/
 ios/.build/
 ios/.swiftpm/
+ios/Package.resolved
 build/
 .artifacts
 docs/.artifacts

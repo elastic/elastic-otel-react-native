@@ -29,10 +29,8 @@ import {
   CONFIG_SCRIPT_LINE,
   PLUGIN_PORTAL_LINE,
 } from '../setup-edits.cjs';
-import { readEdotIosVersion } from './check-edot-versions.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const EDOT_IOS_VERSION = await readEdotIosVersion();
 const REQUIRED = [
   'docs/docset.yml',
   'docs/redirects.yml',
@@ -190,7 +188,6 @@ const gettingStarted = markdownCache.get(
 );
 for (const heading of [
   '## Requirements',
-  '### Tested versions',
   '## Set up an Expo app',
   '## Manual host setup fallback',
   '## Bootstrap before React Native',
@@ -219,60 +216,7 @@ for (const expectedCommand of [
     throw new Error(`The getting-started guide is missing ${expectedCommand}.`);
   }
 }
-const testedVersionRows = new Map(
-  section(gettingStarted, '### Tested versions')
-    .split(/\r?\n/)
-    .filter((line) => line.startsWith('|'))
-    .map((line) =>
-      line
-        .split('|')
-        .slice(1, -1)
-        .map((cell) => cell.trim()),
-    )
-    .filter((cells) => cells.length === 2),
-);
-// The React and React Native rows come from package.json and the Expo rows
-// from the Expo fixture, so a version bump that skips the docs fails here. npm
-// resolves @expo/cli from expo's own node_modules first.
 const packageJson = JSON.parse(await load('package.json'));
-const expoFixture = JSON.parse(
-  await readFile(join(ROOT, 'expo-fixture/package.json'), 'utf8'),
-);
-const expoLockPackages = JSON.parse(
-  await readFile(join(ROOT, 'expo-fixture/package-lock.json'), 'utf8'),
-).packages;
-const expoVersion = expoFixture.dependencies.expo;
-const expoCliVersion = (
-  expoLockPackages['node_modules/expo/node_modules/@expo/cli'] ??
-  expoLockPackages['node_modules/@expo/cli']
-).version;
-for (const [component, version] of [
-  ['Node.js', '22.23.2'],
-  ['React', packageJson.devDependencies.react],
-  [
-    'React Native',
-    `${packageJson.devDependencies['react-native']} with Hermes and the New Architecture`,
-  ],
-  ['Android Gradle Plugin', '9.2.1'],
-  ['Gradle', '9.4.1'],
-  ['Kotlin', '2.2.0'],
-  ['JDK', 'Amazon Corretto 21.0.9'],
-  ['Android API', 'compile 37 / target 36 / minimum 26'],
-  // The EDOT Android row is checked by scripts/check-edot-versions.mjs.
-  ['Xcode', '27.0'],
-  ['CocoaPods', '1.16.2'],
-  ['iOS deployment target', '15.1'],
-  ['EDOT iOS', `${EDOT_IOS_VERSION} (\`ElasticApm\` SwiftPM product)`],
-  [
-    'Expo SDK',
-    `${expoVersion.split('.')[0]} (\`expo\` ${expoVersion}, \`@expo/cli\` ${expoCliVersion})`,
-  ],
-  ['React Native for Expo', expoFixture.dependencies['react-native']],
-]) {
-  if (testedVersionRows.get(component) !== version) {
-    throw new Error(`The tested-version table is missing ${component}.`);
-  }
-}
 
 // The Expo section's app.json example must list the same plugins and build
 // properties as the Expo fixture, whose build proves them.
