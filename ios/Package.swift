@@ -37,7 +37,7 @@ let package = Package(
     ),
     .package(
       url: "https://github.com/open-telemetry/opentelemetry-swift-core",
-      from: "2.3.0"
+      from: "2.6.0"
     ),
   ],
   targets: [
