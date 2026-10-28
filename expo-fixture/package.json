@@ -9,6 +9,6 @@
     "expo": "57.0.27",
     "expo-build-properties": "57.0.22",
     "react": "19.2.3",
-    "react-native": "0.86.3"
+    "react-native": "0.88.0"
   }
 }
