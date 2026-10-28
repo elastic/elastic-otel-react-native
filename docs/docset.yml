@@ -1,4 +1,4 @@
-project: 'EDOT React Native SDK docs'
+project: "EDOT React Native SDK docs"
 products:
   - id: edot-sdk
 cross_links:

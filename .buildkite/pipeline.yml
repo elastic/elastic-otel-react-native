@@ -19,17 +19,17 @@
 steps:
   # if our Renovate configuration is amended, then make sure we have well-formed config
   # for more info, see https://docs.elastic.dev/plat-prod-team/service-catalogue/renovate/testing-renovate-changes
-  - label: 'Verify Renovate configuration'
-    command: 'renovate-config-validator'
+  - label: "Verify Renovate configuration"
+    command: "renovate-config-validator"
     agents:
-      image: 'docker.elastic.co/ci-agent-images/pipelib:0.35.0@sha256:4e521947861821d7607b26b95c141f47e6a8794c6b15e53b1813dafea61a557b'
+      image: "docker.elastic.co/ci-agent-images/pipelib:0.35.0@sha256:4e521947861821d7607b26b95c141f47e6a8794c6b15e53b1813dafea61a557b"
     if_changed:
-      - 'renovate.json'
+      - "renovate.json"
 
   # if our catalog-info.yaml is changed, make sure it's well-formed according to our internal standards as well as Backstage's validation
   - label: Validate TokenPolicy RREs
-    command: '/agent/check-catalog-info.sh'
+    command: "/agent/check-catalog-info.sh"
     agents:
-      image: 'docker.elastic.co/ci-agent-images/pipelib:0.35.0@sha256:4e521947861821d7607b26b95c141f47e6a8794c6b15e53b1813dafea61a557b'
+      image: "docker.elastic.co/ci-agent-images/pipelib:0.35.0@sha256:4e521947861821d7607b26b95c141f47e6a8794c6b15e53b1813dafea61a557b"
     if_changed:
-      - 'catalog-info.yaml'
+      - "catalog-info.yaml"
