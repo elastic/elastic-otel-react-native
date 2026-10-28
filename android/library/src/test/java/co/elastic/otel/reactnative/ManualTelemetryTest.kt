@@ -22,8 +22,6 @@ import io.opentelemetry.api.trace.SpanId
 import io.opentelemetry.sdk.OpenTelemetrySdk
 import io.opentelemetry.sdk.logs.SdkLoggerProvider
 import io.opentelemetry.sdk.logs.export.SimpleLogRecordProcessor
-import io.opentelemetry.sdk.testing.exporter.InMemoryLogRecordExporter
-import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter
 import io.opentelemetry.sdk.trace.SdkTracerProvider
 import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor
 import java.util.concurrent.CountDownLatch
@@ -45,8 +43,8 @@ class ManualTelemetryTest {
 
     @Before
     fun setUp() {
-        spans = InMemorySpanExporter.create()
-        logs = InMemoryLogRecordExporter.create()
+        spans = InMemorySpanExporter()
+        logs = InMemoryLogRecordExporter()
         sdk = OpenTelemetrySdk.builder()
             .setTracerProvider(
                 SdkTracerProvider.builder()

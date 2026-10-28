@@ -53,7 +53,7 @@
     "NOTICE.txt"
   ],
   "scripts": {
-    "format:check": "prettier --check README.md package.json babel-plugin.cjs babel-plugin.d.cts app.plugin.js setup-edits.cjs react-native.config.js src tests bin scripts docs fixture/index.ts fixture/tsconfig.json expo-fixture/index.js expo-fixture/babel.config.js expo-fixture/app.json expo-fixture/elastic-otel-config.json",
+    "format:check": "prettier --check .",
     "typecheck": "tsc --noEmit",
     "build:types": "tsc --emitDeclarationOnly",
     "prepare": "npm run build:types",
