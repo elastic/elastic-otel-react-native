@@ -17,7 +17,7 @@
  */
 
 import { execFileSync } from 'node:child_process';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, dirname, extname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -74,6 +74,7 @@ function classify(path) {
       'NOTICE.txt',
       '.gitignore',
       '.npmignore',
+      '.prettierignore',
       '.watchmanconfig',
       'Package.resolved',
       'Gemfile.lock',
@@ -88,7 +89,7 @@ function classify(path) {
   ) {
     return null;
   }
-  throw new Error('unclassified tracked file');
+  throw new Error('unclassified file');
 }
 
 function splitFirstLine(source) {
@@ -135,12 +136,20 @@ const fix = process.argv.includes('--fix');
 if (process.argv.slice(2).some((arg) => arg !== '--fix')) {
   throw new Error('Usage: node scripts/check-license-headers.mjs [--fix]');
 }
-const paths = execFileSync('git', ['ls-files', '-z'], {
-  cwd: root,
-  encoding: 'utf8',
-})
-  .split('\0')
-  .filter(Boolean);
+// Untracked files that Git does not ignore are checked too, so a new file
+// fails before its first commit. Tracked files deleted in the worktree are
+// skipped.
+const paths = [
+  ...new Set(
+    execFileSync(
+      'git',
+      ['ls-files', '-z', '--cached', '--others', '--exclude-standard'],
+      { cwd: root, encoding: 'utf8' },
+    )
+      .split('\0')
+      .filter(Boolean),
+  ),
+].filter((path) => existsSync(resolve(root, path)));
 const failures = [];
 let checked = 0;
 for (const path of paths) {
@@ -172,6 +181,6 @@ if (failures.length) {
   process.exitCode = 1;
 } else {
   console.log(
-    `License headers ${fix ? 'fixed' : 'checked'} in ${checked} tracked source files.`,
+    `License headers ${fix ? 'fixed' : 'checked'} in ${checked} source files.`,
   );
 }

@@ -17,7 +17,6 @@
 ---
 # $yaml-language-server: $schema=https://raw.githubusercontent.com/buildkite/pipeline-schema/main/schema.json
 steps:
-
   # if our Renovate configuration is amended, then make sure we have well-formed config
   # for more info, see https://docs.elastic.dev/plat-prod-team/service-catalogue/renovate/testing-renovate-changes
   - label: "Verify Renovate configuration"

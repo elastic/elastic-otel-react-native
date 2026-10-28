@@ -22,7 +22,6 @@ import io.opentelemetry.api.common.AttributeKey
 import io.opentelemetry.sdk.OpenTelemetrySdk
 import io.opentelemetry.sdk.logs.SdkLoggerProvider
 import io.opentelemetry.sdk.logs.export.SimpleLogRecordProcessor
-import io.opentelemetry.sdk.testing.exporter.InMemoryLogRecordExporter
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -39,7 +38,7 @@ class InteractionTelemetryTest {
 
     @Before
     fun setUp() {
-        logs = InMemoryLogRecordExporter.create()
+        logs = InMemoryLogRecordExporter()
         sdk = OpenTelemetrySdk.builder()
             .setLoggerProvider(
                 SdkLoggerProvider.builder()

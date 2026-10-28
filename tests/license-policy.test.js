@@ -142,6 +142,24 @@ test.each([
   },
 );
 
+test('header check covers untracked files but not ignored or deleted ones', () => {
+  withScriptFixture('check-license-headers.mjs', (root, run) => {
+    execFileSync('git', ['init', '-q'], { cwd: root });
+    writeFileSync(join(root, '.gitignore'), 'ignored/\n');
+    mkdirSync(join(root, 'ignored'));
+    writeFileSync(join(root, 'ignored/probe.js'), 'export {};\n');
+    writeFileSync(join(root, 'deleted.js'), 'export {};\n');
+    execFileSync('git', ['add', '--', 'deleted.js'], { cwd: root });
+    rmSync(join(root, 'deleted.js'));
+    run();
+
+    writeFileSync(join(root, 'probe.js'), 'export {};\n');
+    expect(() => run()).toThrow();
+    run('--fix');
+    run();
+  });
+});
+
 test('notice includes dot and hyphen license filenames deterministically and retains fallbacks', () => {
   withScriptFixture('generate-notice.mjs', (root, run) => {
     writeFileSync(
