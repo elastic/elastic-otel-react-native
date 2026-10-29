@@ -1,0 +1,95 @@
+# Copyright Elastic Technologies Inc. and/or licensed to
+# Elastic Technologies Inc. under one or more contributor license
+# agreements. See the NOTICE file distributed with this work for
+# additional information regarding copyright ownership.
+# Elastic Technologies Inc. licenses this file to you under the Apache
+# License, Version 2.0 (the "License"); you may not use this file except
+# in compliance with the License. You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: Update the Expo fixture
+# Every run updates the same pull request.
+pipelineid: expo-fixture
+
+scms:
+  default:
+    kind: github
+    spec:
+      owner: elastic
+      repository: elastic-otel-react-native
+      branch: main
+      # Cloning a private repository needs a username with the token.
+      username: x-access-token
+      token: '{{ requiredEnv "GITHUB_TOKEN" }}'
+      commitusingapi: true
+
+sources:
+  expo:
+    name: Get the highest expo release published at least 7 days ago
+    kind: npm
+    spec:
+      name: expo
+      # With the default "latest" filter, the age window picks the most
+      # recently published version, which can be a patch of an older SDK.
+      versionfilter:
+        kind: semver
+        pattern: "*"
+      age:
+        minimum: 7d
+
+targets:
+  expo-fixture:
+    name: 'Update the Expo fixture to Expo {{ source "expo" }}'
+    kind: shell
+    scmid: default
+    disablesourceinput: true
+    spec:
+      workdir: expo-fixture
+      command: |
+        set -e
+        # file/checksum ignores the exit code, but a missing monitored file
+        # fails the target.
+        trap '[ $? -eq 0 ] || rm -f package-lock.json' EXIT
+        # npm runs the prepare script of the linked bridge even with
+        # ignore-scripts, and that script needs the bridge's dev dependencies.
+        npm ci --prefix .. --no-audit --no-fund
+        npm install --no-audit --no-fund expo@{{ source "expo" }}
+        # Expo CLI moves the packages that Expo pins, including react and
+        # react-native, to the versions of the installed Expo SDK.
+        npx expo install --fix
+        # Expo CLI saves version ranges and moves expo to its newest patch.
+        # Pin each registry dependency to its installed version and expo to
+        # the selected release.
+        pinned=$(node -p "const l = require('./package-lock.json').packages; Object.keys(require('./package.json').dependencies).filter((n) => n !== 'expo' && !l['node_modules/' + n].link).map((n) => n + '@' + l['node_modules/' + n].version).join(' ')")
+        npm install --no-audit --no-fund expo@{{ source "expo" }} $pinned
+      environments:
+        - name: PATH
+        - name: HOME
+        - name: CI
+          value: "1"
+        - name: npm_config_ignore_scripts
+          value: "true"
+        - name: npm_config_save_exact
+          value: "true"
+      changedif:
+        kind: file/checksum
+        spec:
+          files:
+            - package.json
+            - package-lock.json
+
+actions:
+  default:
+    kind: github/pullrequest
+    scmid: default
+    title: 'Update the Expo fixture to Expo {{ source "expo" }}'
+    spec:
+      labels:
+        - dependencies

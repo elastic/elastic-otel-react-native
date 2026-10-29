@@ -64,6 +64,7 @@ function classify(path) {
     ['Podfile', 'Gemfile', 'backend-manager'].includes(name) ||
     /^\.github\/workflows\/[^/]+\.yml$/.test(path) ||
     /^\.buildkite\/[^/]+\.yml$/.test(path) ||
+    /^\.ci\/updatecli\/[^/]+\.yml$/.test(path) ||
     path === 'catalog-info.yaml'
   ) {
     return 'hash';
