@@ -25,8 +25,7 @@ Kibana. For an Expo application, see
 | Expo SDK, in Expo apps | 57                                       |
 
 The table lists the minimum versions the package supports. Below Android API
-level 26 without
-[Java 8 library desugaring](https://developer.android.com/studio/write/java8-support#library-desugaring),
+level 26 without [Java 8 library desugaring](https://developer.android.com/studio/write/java8-support#library-desugaring),
 the Android build stops with an EDOT React Native error that names the
 variant and its `minSdk` and gives two choices: raise `minSdk` to 26, or
 keep it at 24 or higher and enable desugaring. Below 24, the build fails
