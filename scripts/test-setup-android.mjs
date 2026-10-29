@@ -41,7 +41,6 @@ import {
   CONFIG_SCRIPT_LINE,
   PLUGIN_PORTAL_LINE,
 } from '../setup-edits.cjs';
-import { readEdotAndroidVersion } from './check-edot-versions.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const FIXTURE = join(ROOT, 'fixture');
@@ -57,6 +56,19 @@ const APP_LINES = [...APPLY_PLUGIN_LINES, CONFIG_SCRIPT_LINE];
 
 function digest(content) {
   return createHash('sha256').update(content).digest('hex');
+}
+
+async function readEdotAndroidVersion() {
+  const path = 'android/library/gradle.properties';
+  const versions = [
+    ...(await readFile(join(ROOT, path), 'utf8')).matchAll(
+      /^edotAndroidVersion=(\S+)\s*$/gm,
+    ),
+  ].map((match) => match[1]);
+  if (versions.length !== 1) {
+    throw new Error(`${path} must declare exactly one edotAndroidVersion.`);
+  }
+  return versions[0];
 }
 
 async function copyFixture(destination) {

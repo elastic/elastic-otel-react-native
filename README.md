@@ -10,7 +10,7 @@ API, and opt-in build-time tap instrumentation.
 
 The package supports Android and iOS in bare React Native applications and in
 Expo applications that generate their native projects with prebuild. See the
-[tested versions](docs/reference/edot-react-native/getting-started.md#tested-versions).
+[minimum versions](docs/reference/edot-react-native/getting-started.md#requirements).
 
 ## Documentation
 

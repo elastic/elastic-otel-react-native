@@ -17,6 +17,9 @@
 require 'json'
 
 package = JSON.parse(File.read(File.join(__dir__, 'package.json')))
+edot_ios_version = File.read(File.join(__dir__, 'ios', 'Package.swift'))[
+  %r{url: "https://github\.com/elastic/apm-agent-ios\.git",\s*exact: "([^"]+)"}, 1
+] or raise 'ios/Package.swift must declare the apm-agent-ios exact version.'
 
 Pod::Spec.new do |spec|
   spec.name = 'ElasticOtelReactNative'
@@ -43,7 +46,7 @@ Pod::Spec.new do |spec|
     url: 'https://github.com/elastic/apm-agent-ios.git',
     requirement: {
       kind: 'exactVersion',
-      version: '2.3.0'
+      version: edot_ios_version
     },
     products: ['ElasticApm']
   )

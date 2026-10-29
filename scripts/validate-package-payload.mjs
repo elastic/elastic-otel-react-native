@@ -20,8 +20,6 @@ import { execFileSync } from 'node:child_process';
 import { statSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 
-import { readEdotIosVersion } from './check-edot-versions.mjs';
-
 const output = execFileSync('npm', ['pack', '--dry-run', '--json'], {
   encoding: 'utf8',
 });
@@ -107,9 +105,7 @@ if ((statSync('bin/elastic-otel-react-native.mjs').mode & 0o111) === 0) {
 
 const podspec = await readFile('ElasticOtelReactNative.podspec', 'utf8');
 for (const requiredPodspecContent of [
-  "url: 'https://github.com/elastic/apm-agent-ios.git'",
   "kind: 'exactVersion'",
-  `version: '${await readEdotIosVersion()}'`,
   "products: ['ElasticApm']",
 ]) {
   if (!podspec.includes(requiredPodspecContent)) {
