@@ -93,6 +93,49 @@ jobs:
       - name: npm run test:expo-launch:ios
         run: npm run test:expo-launch:ios
 
+  minimum-android:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22.23.2"
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+      - run: npm ci
+      - run: npm run validate:minimum:bare:android
+      - run: npm run validate:minimum:expo:android
+
+  minimum-bare-ios:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22.23.2"
+      - run: npm ci
+      - name: Install the selected CocoaPods
+        run: |
+          minimum_cocoapods=$(node -p 'require("./minimum-fixtures/toolchains.json").cocoaPods')
+          sudo gem install cocoapods --version "$minimum_cocoapods" --no-document
+      - run: npm run validate:minimum:bare:ios
+
+  minimum-expo-ios:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22.23.2"
+      - run: npm ci
+      - name: Install the selected CocoaPods
+        run: |
+          minimum_cocoapods=$(node -p 'require("./minimum-fixtures/toolchains.json").cocoaPods')
+          sudo gem install cocoapods --version "$minimum_cocoapods" --no-document
+      - run: npm run validate:minimum:expo:ios
+
   # Reports whether every job passed. This is the required check.
   ci:
     if: always()
@@ -102,6 +145,9 @@ jobs:
       - ios
       - expo-android
       - expo-ios
+      - minimum-android
+      - minimum-bare-ios
+      - minimum-expo-ios
     steps:
       - id: check
         uses: elastic/oblt-actions/check-dependent-jobs@v1

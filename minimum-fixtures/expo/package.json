@@ -1,0 +1,13 @@
+{
+  "name": "edot-minimum-expo",
+  "version": "0.0.0",
+  "private": true,
+  "main": "index.js",
+  "dependencies": {
+    "expo": "57.0.0",
+    "expo-build-properties": "57.0.2",
+    "babel-preset-expo": "57.0.0",
+    "react": "19.2.3",
+    "react-native": "0.86.0"
+  }
+}
