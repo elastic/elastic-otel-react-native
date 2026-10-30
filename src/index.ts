@@ -36,8 +36,7 @@ type NativeBridge = {
 
 function bridge(): NativeBridge {
   const nativeBridge = NativeModules.ElasticOtelReactNative as
-    | NativeBridge
-    | undefined;
+    NativeBridge | undefined;
   if (!nativeBridge) {
     throw new Error(
       '@elastic/otel-react-native is unavailable. Native autolinking must be enabled and the app rebuilt.',
@@ -48,12 +47,7 @@ function bridge(): NativeBridge {
 }
 
 export type LogSeverity =
-  | 'trace'
-  | 'debug'
-  | 'info'
-  | 'warn'
-  | 'error'
-  | 'fatal';
+  'trace' | 'debug' | 'info' | 'warn' | 'error' | 'fatal';
 
 export type OtelStatus = {
   ready: boolean;

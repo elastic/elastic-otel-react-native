@@ -246,9 +246,9 @@ function alreadyWrapped(path, expression) {
   const binding = path.scope.getBinding(expression.callee.name);
   return Boolean(
     binding &&
-      binding.path.isImportSpecifier() &&
-      exportedName(binding.path.node) === WRAPPER_EXPORT &&
-      binding.path.parent.source.value === PACKAGE_NAME,
+    binding.path.isImportSpecifier() &&
+    exportedName(binding.path.node) === WRAPPER_EXPORT &&
+    binding.path.parent.source.value === PACKAGE_NAME,
   );
 }
 
