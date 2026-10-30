@@ -30,7 +30,7 @@ Pod::Spec.new do |spec|
   spec.authors = 'Elastic'
   spec.source = {
     :git => 'https://github.com/elastic/elastic-otel-react-native.git',
-    :tag => spec.version.to_s
+    :tag => "v#{spec.version}"
   }
 
   spec.platform = :ios, '15.1'
