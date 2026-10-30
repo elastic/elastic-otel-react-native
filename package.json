@@ -55,8 +55,8 @@
   ],
   "scripts": {
     "format:check": "prettier --check .",
-    "typecheck": "tsc --noEmit",
-    "build:types": "tsc --emitDeclarationOnly",
+    "typecheck": "npm run tsc -- --noEmit",
+    "build:types": "npm run tsc -- --emitDeclarationOnly",
     "prepare": "npm run build:types",
     "prepack": "npm run build:types",
     "test": "jest",
@@ -68,7 +68,7 @@
     "pack:check": "node scripts/validate-package-payload.mjs",
     "fixture:build": "npm --prefix build/external-fixture ci --no-audit --no-fund && cd build/external-fixture/android && ./gradlew :app:assembleDebug :app:assembleRelease",
     "fixture:ios:build": "node scripts/build-ios-fixture.mjs",
-    "fixture:typecheck": "tsc --project build/external-fixture/tsconfig.json --noEmit",
+    "fixture:typecheck": "npm run tsc -- --project build/external-fixture/tsconfig.json --noEmit",
     "fixture:verify-autolinking": "node scripts/verify-fixture-autolinking.mjs",
     "validate:js-android": "npm run headers:check && npm run licenses:check && npm run format:check && npm run typecheck && npm run build:types && npm test && npm run android:test && npm run setup:test && npm run setup:ios:test && npm run fixture:typecheck && npm run docs:check && npm run pack:check && npm run fixture:build",
     "validate:ios": "npm run ios:test && npm run fixture:ios:build && npm run fixture:verify-autolinking",
@@ -81,7 +81,8 @@
     "headers:check": "node scripts/check-license-headers.mjs",
     "headers:fix": "node scripts/check-license-headers.mjs --fix",
     "notice:generate": "node scripts/generate-notice.mjs --generate",
-    "licenses:check": "node scripts/generate-notice.mjs --check"
+    "licenses:check": "node scripts/generate-notice.mjs --check",
+    "tsc": "node node_modules/typescript/bin/tsc"
   },
   "peerDependencies": {
     "expo": ">=57.0.0",
@@ -100,9 +101,10 @@
     "@react-native-community/cli-platform-ios": "20.2.0",
     "@types/jest": "29.5.14",
     "@types/react": "19.3.0",
+    "@typescript/typescript6": "6.0.2",
     "ajv": "8.20.0",
     "jest": "29.7.0",
-    "prettier": "3.5.3",
+    "prettier": "3.9.10",
     "react": "19.2.3",
     "react-native": "0.87.1",
     "typescript": "7.0.2"

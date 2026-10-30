@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-const ts = require('typescript');
+const ts = require('@typescript/typescript6');
 
 module.exports = {
   process(source, path) {
