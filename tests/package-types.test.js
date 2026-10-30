@@ -17,12 +17,29 @@
  */
 
 const path = require('node:path');
-const ts = require('typescript');
+const ts = require('@typescript/typescript6');
 
 const root = path.resolve(__dirname, '..');
-const fileName = path.join(root, 'tests', 'babel-config-types.ts');
+const fileName = path.join(root, 'tests', 'consumer-types.ts');
 const source = `
+import { getStatus, startSpan, endSpan, emitLog, recordWidgetClick } from '@elastic/otel-react-native';
 import type { PluginOptions } from '@elastic/otel-react-native/babel-plugin';
+
+export async function telemetry() {
+  const status: { ready: boolean } = await getStatus();
+  const handle: string = await startSpan('screen', { parentSpanHandle: 'parent' });
+  await emitLog('screen opened', 'info', { spanHandle: handle });
+  await recordWidgetClick({ widgetId: 'save', widgetName: 'Save', timestamp: 123 });
+  await endSpan(handle);
+  return status;
+}
+
+// @ts-expect-error severity must be a supported level
+emitLog('screen opened', 'verbose');
+// @ts-expect-error span handles are opaque strings
+startSpan('screen', { parentSpanHandle: 123 });
+// @ts-expect-error widget clicks require a timestamp
+recordWidgetClick({ widgetId: 'save' });
 
 export const valid: PluginOptions = {
   debug: true,
@@ -45,8 +62,7 @@ export const noInstrumentations: PluginOptions = { interactions: { components: [
 export const noClick: PluginOptions = { interactions: { components: [{ name: 'A', instrumentations: {} }] } };
 `;
 
-// Type-checks a config through the package's own `./babel-plugin` export, as
-// an app would import it.
+// Type-checks an app's imports through the package exports.
 function diagnostics(options) {
   const host = ts.createCompilerHost(options);
   const readFile = host.readFile.bind(host);
@@ -76,11 +92,8 @@ test.each([
       moduleResolution: ts.ModuleResolutionKind.Node16,
     },
   ],
-])(
-  'PluginOptions resolves through the babel-plugin export under %s',
-  (_name, options) => {
-    expect(
-      diagnostics({ ...options, strict: true, noEmit: true, types: [] }),
-    ).toEqual([]);
-  },
-);
+])('Published SDK and plugin types resolve under %s', (_name, options) => {
+  expect(
+    diagnostics({ ...options, strict: true, noEmit: true, types: [] }),
+  ).toEqual([]);
+});
