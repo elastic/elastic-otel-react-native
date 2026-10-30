@@ -16,7 +16,11 @@
  * limitations under the License.
  */
 
-const { transformSync } = require('@babel/core');
+let transformSync;
+
+beforeAll(async () => {
+  ({ transformSync } = await import('@babel/core'));
+});
 const plugin = require('../babel-plugin.cjs');
 
 const BUILT_INS = [

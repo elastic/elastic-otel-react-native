@@ -19,7 +19,6 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
-import { createRequire } from 'node:module';
 import {
   chmod,
   cp,
@@ -34,6 +33,8 @@ import {
 } from 'node:fs/promises';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+
+import { verifyFixtureBabelPlugin } from './verify-fixture-babel-plugin.mjs';
 
 import {
   APPLY_PLUGIN_LINES,
@@ -283,23 +284,7 @@ async function verifySupportedFlow() {
     0,
     installPacked.stderr || installPacked.stdout,
   );
-  const fixtureRequire = createRequire(join(EXTERNAL_FIXTURE, 'package.json'));
-  const babel = fixtureRequire('@babel/core');
-  const interactionsPlugin = fixtureRequire(
-    '@elastic/otel-react-native/babel-plugin',
-  );
-  const transformed = babel.transformSync(
-    `import { Pressable } from 'react-native';
-     <Pressable testID="fixture.tap" onPress={handler} />;`,
-    {
-      babelrc: false,
-      configFile: false,
-      parserOpts: { plugins: ['jsx'] },
-      plugins: [interactionsPlugin],
-    },
-  ).code;
-  assert.match(transformed, /__wrapPressHandler/);
-  assert.match(transformed, /"fixture.tap"/);
+  verifyFixtureBabelPlugin(EXTERNAL_FIXTURE);
   const installedBin = join(
     EXTERNAL_FIXTURE,
     'node_modules',
