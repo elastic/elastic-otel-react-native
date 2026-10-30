@@ -100,7 +100,7 @@
     }
   },
   "devDependencies": {
-    "@babel/core": "8.0.7",
+    "@babel/core": "8.0.9",
     "@react-native-community/cli": "20.2.0",
     "@react-native-community/cli-platform-android": "20.2.0",
     "@react-native-community/cli-platform-ios": "20.2.0",
