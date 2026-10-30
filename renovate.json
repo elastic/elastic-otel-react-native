@@ -2,7 +2,11 @@
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": ["local>elastic/renovate-config"],
   "addLabels": ["dependencies"],
-  "ignorePaths": [".github/workflows/**", "expo-fixture/**"],
+  "ignorePaths": [
+    ".github/workflows/**",
+    "expo-fixture/**",
+    "minimum-fixtures/**"
+  ],
   "prHourlyLimit": 0,
   "prConcurrentLimit": 0,
   "packageRules": [

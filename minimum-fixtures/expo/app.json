@@ -1,0 +1,27 @@
+{
+  "expo": {
+    "name": "EDOTMinimumExpo",
+    "slug": "edot-minimum-expo",
+    "version": "1.0.0",
+    "android": {
+      "package": "co.elastic.otel.minimumexpo"
+    },
+    "ios": {
+      "bundleIdentifier": "co.elastic.otel.minimumexpo"
+    },
+    "plugins": [
+      "@elastic/otel-react-native",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "minSdkVersion": 26
+          },
+          "ios": {
+            "useFrameworks": "dynamic"
+          }
+        }
+      ]
+    ]
+  }
+}

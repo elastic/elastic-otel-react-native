@@ -75,14 +75,19 @@
     "validate:expo:android": "node scripts/expo-fixture.mjs build android",
     "validate:expo:ios": "node scripts/expo-fixture.mjs build ios",
     "validate:expo": "npm run validate:expo:android && npm run validate:expo:ios",
-    "validate": "npm run validate:js-android && npm run validate:ios && npm run validate:expo",
+    "validate": "npm run validate:js-android && npm run validate:ios && npm run validate:expo && npm run validate:minimum",
     "test:expo-launch:android": "node scripts/expo-fixture.mjs launch android",
     "test:expo-launch:ios": "node scripts/expo-fixture.mjs launch ios",
     "headers:check": "node scripts/check-license-headers.mjs",
     "headers:fix": "node scripts/check-license-headers.mjs --fix",
     "notice:generate": "node scripts/generate-notice.mjs --generate",
     "licenses:check": "node scripts/generate-notice.mjs --check",
-    "tsc": "node node_modules/typescript/bin/tsc"
+    "tsc": "node node_modules/typescript/bin/tsc",
+    "validate:minimum:bare:android": "node scripts/minimum-consumer.mjs bare android",
+    "validate:minimum:bare:ios": "node scripts/minimum-consumer.mjs bare ios",
+    "validate:minimum:expo:android": "node scripts/minimum-consumer.mjs expo android",
+    "validate:minimum:expo:ios": "node scripts/minimum-consumer.mjs expo ios",
+    "validate:minimum": "npm run validate:minimum:bare:android && npm run validate:minimum:bare:ios && npm run validate:minimum:expo:android && npm run validate:minimum:expo:ios"
   },
   "peerDependencies": {
     "expo": ">=57.0.0",
