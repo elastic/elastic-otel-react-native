@@ -32,6 +32,8 @@ import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { setTimeout as sleep } from 'node:timers/promises';
 
+import { verifyFixtureBabelPlugin } from './verify-fixture-babel-plugin.mjs';
+
 import {
   APPLY_PLUGIN_LINES,
   CLASSPATH_LINES,
@@ -236,6 +238,8 @@ async function prepareFixture() {
   } finally {
     await rm(tarball, { force: true });
   }
+
+  verifyFixtureBabelPlugin(FIXTURE);
 
   // Without the configuration file, prebuild fails and names the file.
   const movedConfigFile = join(TEMPORARY, CONFIG_FILE);
