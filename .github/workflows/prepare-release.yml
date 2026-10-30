@@ -64,13 +64,15 @@ jobs:
           notes: ${{ inputs.release_notes }}
           github-token: ${{ steps.token.outputs.token }}
 
-      # Regenerate NOTICE.txt from the installed runtime tree, so the
-      # preparation commit ships it with the release changes.
-      - name: Regenerate NOTICE.txt
+      # Regenerate NOTICE.txt from the installed runtime tree and format the
+      # release notes with the repository's Prettier, so the preparation
+      # commit ships both and passes the formatting check.
+      - name: Regenerate NOTICE.txt and format the release notes
         if: steps.prepare.outputs.prepared == 'true'
         run: |
           npm ci --ignore-scripts
           npm run notice:generate
+          npm exec --no -- prettier --write docs/release-notes/index.md
 
       - name: Open preparation pull request
         if: steps.prepare.outputs.prepared == 'true'
