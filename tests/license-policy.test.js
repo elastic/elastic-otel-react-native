@@ -199,6 +199,11 @@ test('notice includes dot and hyphen license filenames deterministically and ret
     expect(notice).not.toContain('Other notice must not be selected');
     run('--generate');
     expect(readFileSync(join(root, 'NOTICE.txt'), 'utf8')).toBe(notice);
+    writeFileSync(join(dependency, 'LICENSE.MIT'), 'CRLF\r\nand CR\rtext\r\n');
+    run('--generate');
+    const normalized = readFileSync(join(root, 'NOTICE.txt'), 'utf8');
+    expect(normalized).toContain('CRLF\nand CR\ntext');
+    expect(normalized).not.toContain('\r');
     rmSync(join(dependency, 'LICENSE-APACHE'));
     rmSync(join(dependency, 'LICENSE.MIT'));
     writeFileSync(

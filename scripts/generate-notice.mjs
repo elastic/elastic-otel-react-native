@@ -236,7 +236,7 @@ function generateNotice(packages) {
     if (item.notice) parts.push(item.notice);
     parts.push(item.licenseText);
   }
-  return `${parts.join('\n\n').replace(/\n*$/, '')}\n`;
+  return `${parts.join('\n\n').replace(/\r\n?/g, '\n').replace(/\n*$/, '')}\n`;
 }
 
 if (

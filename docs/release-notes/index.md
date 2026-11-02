@@ -13,6 +13,8 @@ Review the changes, fixes, and more in each version of Elastic Distribution of O
 
 To check for security updates, go to [Security announcements for the Elastic stack](https://discuss.elastic.co/c/announcements/security-announcements/31).
 
+% next_release_notes
+
 % Release notes includes only features, enhancements, and fixes. Add breaking changes, deprecations, and known issues to the applicable release notes sections.
 
 % ## version.next [edot-react-native-versionext-release-notes]

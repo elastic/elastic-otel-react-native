@@ -1,0 +1,149 @@
+# Copyright Elastic Technologies Inc. and/or licensed to
+# Elastic Technologies Inc. under one or more contributor license
+# agreements. See the NOTICE file distributed with this work for
+# additional information regarding copyright ownership.
+# Elastic Technologies Inc. licenses this file to you under the Apache
+# License, Version 2.0 (the "License"); you may not use this file except
+# in compliance with the License. You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: Publish release
+
+# Runs when a preparation PR is merged into its releasing/x.y.z branch. The
+# repository token policy is bound to this file's path on releasing/* branches.
+on:
+  pull_request:
+    types: [closed]
+    branches:
+      - "releasing/**"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-release-${{ github.event.pull_request.base.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish-release:
+    name: Publish release
+    if: >-
+      github.event.pull_request.merged == true
+      && startsWith(github.event.pull_request.head.ref, 'prepare/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+      pull-requests: write
+    env:
+      SLACK_CHANNEL: "#apm-agent-mobile"
+    steps:
+      - name: Get repository write token
+        id: token
+        uses: elastic/oblt-actions/github/create-token@v1
+
+      # Pin to the merged commit so the release configuration and package the
+      # steps below read are the reviewed ones, not whatever the releasing
+      # branch points at when the job starts.
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+          token: ${{ steps.token.outputs.token }}
+
+      - uses: elastic/oblt-actions/git/setup@v1
+        with:
+          github-token: ${{ steps.token.outputs.token }}
+
+      - name: Guard merged release
+        id: guard
+        uses: elastic/oblt-actions/edot-release/publish-guard@v1
+
+      # A notification failure must not stop the release.
+      - name: Report release start
+        continue-on-error: true
+        uses: elastic/oblt-actions/slack/send@v1
+        with:
+          bot-token: ${{ secrets.SLACK_BOT_TOKEN }}
+          channel-id: ${{ env.SLACK_CHANNEL }}
+          message: |
+            :rocket: [${{ github.repository }}] EDOT React Native ${{ steps.guard.outputs.version }} ${{ steps.guard.outputs.tag-exists == 'false' && 'release started' || 'release finalization resumed' }}.
+            Merged by ${{ github.event.pull_request.merged_by.login }} from ${{ github.event.pull_request.html_url }} into ${{ github.event.pull_request.base.ref }}.
+            Commit: ${{ github.event.pull_request.merge_commit_sha }}
+            Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+      - name: Set up Node.js
+        if: steps.guard.outputs.tag-exists == 'false'
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+
+      - name: Install dependencies
+        if: steps.guard.outputs.tag-exists == 'false'
+        run: npm ci --ignore-scripts
+
+      # The registry is the record of what is published, so a rerun after a
+      # later step failed does not publish the same version again. A release
+      # older than the registry's latest gets its line's latest-X.Y tag, so it
+      # does not take latest from a newer version.
+      - name: Publish to npm
+        if: steps.guard.outputs.tag-exists == 'false'
+        env:
+          VERSION: ${{ steps.guard.outputs.version }}
+        run: |
+          package="@elastic/otel-react-native"
+          if npm view "$package@$VERSION" version >/dev/null 2>&1; then
+            echo "$package@$VERSION is already published."
+            exit 0
+          fi
+          error="$RUNNER_TEMP/npm-view-error.txt"
+          if ! latest=$(npm view "$package" dist-tags.latest 2>"$error"); then
+            if ! grep -q E404 "$error"; then
+              cat "$error" >&2
+              exit 1
+            fi
+            latest=""
+          fi
+          tag=latest
+          if [ -n "$latest" ] && [ "$(printf '%s\n' "$VERSION" "$latest" | sort -V | tail -n 1)" != "$VERSION" ]; then
+            tag="latest-${VERSION%.*}"
+          fi
+          npm publish --tag "$tag"
+
+      - name: Finalize release
+        id: finalize
+        uses: elastic/oblt-actions/edot-release/finalize@v1
+        with:
+          release: ${{ steps.guard.outputs.release }}
+          github-token: ${{ steps.token.outputs.token }}
+
+      - name: Report release success
+        if: success()
+        continue-on-error: true
+        uses: elastic/oblt-actions/slack/send@v1
+        with:
+          bot-token: ${{ secrets.SLACK_BOT_TOKEN }}
+          channel-id: ${{ env.SLACK_CHANNEL }}
+          message: |
+            :tada: [${{ github.repository }}] EDOT React Native ${{ steps.guard.outputs.version }} was released.
+            Release: ${{ steps.finalize.outputs.release-url }}
+            PR into main: ${{ steps.finalize.outputs.main-pull-request-url }}
+
+      - name: Report release failure to Slack
+        if: failure()
+        uses: elastic/oblt-actions/slack/send@v1
+        with:
+          bot-token: ${{ secrets.SLACK_BOT_TOKEN }}
+          channel-id: ${{ env.SLACK_CHANNEL }}
+          message: |
+            :ghost: [${{ github.repository }}] EDOT React Native release automation failed.
+            Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+            Recovery: ${{ github.server_url }}/${{ github.repository }}/blob/main/RELEASING.md#failure-and-recovery

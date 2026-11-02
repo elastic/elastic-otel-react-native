@@ -1,0 +1,11 @@
+{
+  "tagPrefix": "v",
+  "productName": "EDOT React Native",
+  "versionFile": "package.json",
+  "versionLine": "  \"version\": \"{version}\",",
+  "appliesToKey": "edot_react_native",
+  "headingAnchorPrefix": "edot-react-native-",
+  "subsectionAnchorPrefix": "edot-react-native-",
+  "docsUrl": "https://www.elastic.co/docs/release-notes/edot/sdks/react-native",
+  "stagePaths": ["package.json", "NOTICE.txt", "docs"]
+}

@@ -1,0 +1,82 @@
+# Copyright Elastic Technologies Inc. and/or licensed to
+# Elastic Technologies Inc. under one or more contributor license
+# agreements. See the NOTICE file distributed with this work for
+# additional information regarding copyright ownership.
+# Elastic Technologies Inc. licenses this file to you under the Apache
+# License, Version 2.0 (the "License"); you may not use this file except
+# in compliance with the License. You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# The repository token policy is bound to this file's path on any branch,
+# because patches prepare from patching/x.y.z.
+name: Prepare release
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_notes:
+        description: Release-note JSON. Use the Draft release notes workflow.
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+# One preparation at a time, so two dispatches cannot both pass the
+# release-in-flight check before either has pushed its branches.
+concurrency:
+  group: prepare-release
+  cancel-in-progress: false
+
+jobs:
+  prepare-release:
+    name: Prepare release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+      pull-requests: write
+    steps:
+      - name: Get repository write token
+        id: token
+        uses: elastic/oblt-actions/github/create-token@v1
+
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          token: ${{ steps.token.outputs.token }}
+
+      - uses: elastic/oblt-actions/git/setup@v1
+        with:
+          github-token: ${{ steps.token.outputs.token }}
+
+      - name: Prepare release changes
+        id: prepare
+        uses: elastic/oblt-actions/edot-release/prepare-start@v1
+        with:
+          notes: ${{ inputs.release_notes }}
+          github-token: ${{ steps.token.outputs.token }}
+
+      # Regenerate NOTICE.txt from the installed runtime tree and format the
+      # release notes with the repository's Prettier, so the preparation
+      # commit ships both and passes the formatting check.
+      - name: Regenerate NOTICE.txt and format the release notes
+        if: steps.prepare.outputs.prepared == 'true'
+        run: |
+          npm ci --ignore-scripts
+          npm run notice:generate
+          npm exec --no -- prettier --write docs/release-notes/index.md
+
+      - name: Open preparation pull request
+        if: steps.prepare.outputs.prepared == 'true'
+        uses: elastic/oblt-actions/edot-release/prepare-finish@v1
+        with:
+          release: ${{ steps.prepare.outputs.release }}
+          github-token: ${{ steps.token.outputs.token }}
