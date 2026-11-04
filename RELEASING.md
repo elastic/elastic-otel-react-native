@@ -12,9 +12,15 @@ the preparation PR is what publishes.
 
 ### 1. Prepare the release
 
-Open the
-[Prepare release workflow](https://github.com/elastic/elastic-otel-react-native/actions/workflows/prepare-release.yml)
-on `main` and provide the release-note JSON.
+Use either path:
+
+- Ask an agent to prepare the release with the
+  [`react-native-release-wizard`](skills/react-native-release-wizard/SKILL.md)
+  skill. It proposes the notes and resulting version, then dispatches after
+  you approve.
+- Open the
+  [Prepare release workflow](https://github.com/elastic/elastic-otel-react-native/actions/workflows/prepare-release.yml)
+  on `main` and provide the release-note JSON.
 
 The workflow verifies that `package.json` holds the next-minor `-SNAPSHOT`
 version after the highest release tag, then creates two branches from the
@@ -116,10 +122,11 @@ workflow has already deleted `patching/x.y.z` and `releasing/x.y.z`.
 
 ## Patch release
 
-Open the
+Use the release wizard or the
 [Start patch workflow](https://github.com/elastic/elastic-otel-react-native/actions/workflows/start-patch.yml)
 on `main`. Supply the `X.Y` release line and, optionally, merged `main` pull
 requests to cherry-pick, as numbers separated by commas, such as `12,34`.
+The wizard proposes `bug`-labeled candidates merged after the source tag.
 
 Start patch selects the highest `vX.Y.Z` tag, creates
 `patching/X.Y.(Z+1)` from it, and cherry-picks the selected fixes. It pushes
@@ -131,11 +138,12 @@ request into the patch branch.
 
 The branch releases with the workflows of its tag.
 
-Dispatch the Draft release notes workflow on `patching/x.y.z`; the draft then
-covers only that branch's changes. Edit the notes, then dispatch Prepare
-release from that branch. Review and merge the preparation PR to publish.
-Finally, merge the notes-only PR into `main` and delete `patch-notes/x.y.z`.
-The publish workflow deletes `patching/x.y.z` and `releasing/x.y.z`.
+Draft release notes with the wizard or by dispatching the Draft release notes
+workflow on `patching/x.y.z`; the draft then covers only that branch's
+changes. Edit the notes, then dispatch Prepare release from that branch.
+Review and merge the preparation PR to publish. Finally, merge the notes-only
+PR into `main` and delete `patch-notes/x.y.z`. The publish workflow deletes
+`patching/x.y.z` and `releasing/x.y.z`.
 
 A patch on an older line than the npm `latest` version, such as `0.1.1`
 after `0.2.0`, is published with the `latest-X.Y` dist-tag, here

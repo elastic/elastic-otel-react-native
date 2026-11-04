@@ -69,6 +69,7 @@ function classify(path) {
   ) {
     return 'hash';
   }
+  if (['.agents/skills', '.claude/skills'].includes(path)) return null;
   if (
     [
       'LICENSE',
