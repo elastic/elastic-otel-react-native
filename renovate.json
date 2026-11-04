@@ -17,7 +17,8 @@
     {
       "description": "React Native and its @react-native packages release in lockstep, and a mixed tree fails npm ci. Each React Native minor raises its react peer floor, so react moves with them.",
       "matchPackageNames": ["react-native", "@react-native/**", "react"],
-      "groupName": "react-native"
+      "groupName": "react-native",
+      "postUpdateOptions": ["npmInstallTwice"]
     },
     {
       "description": "ios/Package.swift declares only a minimum for opentelemetry-swift-core; hosts resolve its version through EDOT iOS.",
