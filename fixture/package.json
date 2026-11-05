@@ -8,8 +8,8 @@
     "react-native": "0.88.1"
   },
   "devDependencies": {
-    "@babel/core": "8.0.9",
-    "@babel/runtime": "8.0.8",
+    "@babel/core": "8.0.10",
+    "@babel/runtime": "8.0.10",
     "@react-native-community/cli": "20.2.0",
     "@react-native-community/cli-platform-android": "20.2.0",
     "@react-native-community/cli-platform-ios": "20.2.0",
