@@ -344,6 +344,7 @@ final class BootstrapTests: XCTestCase {
       [
         "service.name": .string("service"),
         "os.name": .string("iOS"),
+        "data_stream.dataset": .string("react_native"),
         "custom.list": .string("a,b"),
         "custom.pair": .string("k=v"),
         "custom.quoted": .string("\"quoted\""),
@@ -352,4 +353,30 @@ final class BootstrapTests: XCTestCase {
       ]
     )
   }
+
+  func testReactNativeDatasetOverridesInheritedDatasetsUnlessExplicitlyConfigured() {
+    let inheritedDatasets: [String?] = [nil, "android", "ios", "native_custom"]
+    let configuredDatasets: [String?] = [nil, "generic", "storefront"]
+    for inherited in inheritedDatasets {
+      for configured in configuredDatasets {
+        var original: [String: AttributeValue] = [
+          "service.name": .string("fixture"),
+          "os.name": .string("iOS"),
+          "data_stream.namespace": .string("production"),
+        ]
+        if let inherited {
+          original["data_stream.dataset"] = .string(inherited)
+        }
+        let existing = Resource(attributes: original)
+        let attributes = configured.map { ["data_stream.dataset": $0] } ?? [:]
+        let intercepted = resourceAttributesInterceptor(attributes).intercept(existing)
+        var expected = original
+        expected["data_stream.dataset"] = .string(configured ?? "react_native")
+
+        XCTAssertEqual(intercepted.attributes, expected)
+        XCTAssertEqual(existing.attributes, original)
+      }
+    }
+  }
+
 }

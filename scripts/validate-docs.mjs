@@ -42,6 +42,7 @@ const REQUIRED = [
   'docs/reference/edot-react-native/manual-instrumentation.md',
   'docs/release-notes/toc.yml',
   'docs/release-notes/index.md',
+  'docs/release-notes/breaking-changes.md',
   'docs/release-notes/known-issues.md',
 ];
 const MARKDOWN = [
@@ -133,7 +134,7 @@ if (
 }
 
 const releaseToc = await load('docs/release-notes/toc.yml');
-for (const page of ['index.md', 'known-issues.md']) {
+for (const page of ['index.md', 'breaking-changes.md', 'known-issues.md']) {
   if (!releaseToc.includes(`- file: ${page}`)) {
     throw new Error(`Release-note navigation is missing ${page}.`);
   }
