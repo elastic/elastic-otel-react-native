@@ -59,7 +59,8 @@ Native ignores it.
 | `sessionSampleRate`  | number from 0 to 1      | no                       | `1`               | The fraction of sessions that are recorded.                         |
 | `resourceAttributes` | object of string values | yes, with `service.name` |                   | One resource attribute for each entry.                              |
 
-Use OpenTelemetry semantic convention keys in `resourceAttributes`.
+Use OpenTelemetry semantic convention keys in `resourceAttributes`. For
+Elastic routing attributes, refer to [Data stream routing](#data-stream-routing).
 `service.name` is required. `service.version` defaults to the application
 version. Set `deployment.environment.name` and other attributes, such as
 `service.namespace`, as needed. See [Service identity](#service-identity).
@@ -214,6 +215,43 @@ name that identifies the mobile application as the telemetry-producing
 service.
 
 When `service.version` is absent, the application version is used.
+
+## Data stream routing
+
+EDOT React Native sets the resource attribute `data_stream.dataset` to
+`react_native` on both Android and iOS. This value replaces any dataset
+inherited from the native SDK. Other inherited resource attributes remain
+unchanged.
+
+To use another dataset, set `data_stream.dataset` in the React Native
+`resourceAttributes` configuration. This explicit value overrides the
+`react_native` default. The same rule applies to the configuration file and
+`BootstrapConfiguration` passed in native code. Standalone EDOT Android and
+EDOT iOS applications are not affected.
+
+With default Elastic OTel-native data stream routing, traces and logs use:
+
+| Signal | Data stream                            |
+| ------ | -------------------------------------- |
+| Traces | `traces-react_native.otel-<namespace>` |
+| Logs   | `logs-react_native.otel-<namespace>`   |
+
+Metrics exported with this resource use
+`metrics-react_native.otel-<namespace>`. This setting does not enable metrics
+collection. The namespace is `default` unless another value is configured.
+Scope or record routing attributes and other ingest routing settings can
+change the destination. Refer to
+[Data stream routing](docs-content://solutions/observability/apm/opentelemetry/data-stream-routing.md).
+
+To separate production data, add `"data_stream.namespace": "production"`
+to `resourceAttributes`. You do not need to set the dataset. To retain the
+previous default dataset, add `"data_stream.dataset": "generic"` instead.
+
+Use a valid dataset string without the `.otel` suffix. Elastic ingest adds
+this suffix for OTel-native data stream routing. Null, non-string, and blank
+values are invalid, as with other React Native resource attributes. Custom
+datasets can affect dashboards and integrations. Refer to
+[Custom data stream routing](elastic-agent://reference/edot-collector/config/custom-data-streams.md).
 
 ## Initialization and errors
 

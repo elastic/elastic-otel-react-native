@@ -3,6 +3,7 @@ products:
   - id: edot-sdk
 cross_links:
   - docs-content
+  - elastic-agent
   - integration-docs
 toc:
   - toc: release-notes

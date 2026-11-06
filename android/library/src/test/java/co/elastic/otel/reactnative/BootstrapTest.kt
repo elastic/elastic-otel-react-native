@@ -385,8 +385,37 @@ class BootstrapTest {
                 AttributeKey.stringKey("service.name") to "fixture",
                 AttributeKey.stringKey("os.name") to "Android",
                 AttributeKey.stringKey("service.namespace") to "x",
+                AttributeKey.stringKey("data_stream.dataset") to "react_native",
             ),
             intercepted.attributes.asMap(),
         )
     }
+
+    @Test
+    fun reactNativeDatasetOverridesInheritedDatasetsUnlessExplicitlyConfigured() {
+        val datasetKey = AttributeKey.stringKey("data_stream.dataset")
+        for (inherited in listOf(null, "android", "ios", "native_custom")) {
+            for (configured in listOf(null, "generic", "storefront")) {
+                val existing = Resource.builder()
+                    .put("service.name", "fixture")
+                    .put("os.name", "Android")
+                    .put("data_stream.namespace", "production")
+                    .apply { inherited?.let { put(datasetKey, it) } }
+                    .build()
+                val original = existing.attributes.asMap().toMap()
+                val configuredAttributes = configured?.let {
+                    mapOf("data_stream.dataset" to it)
+                } ?: emptyMap()
+                val intercepted = resourceAttributesInterceptor(configuredAttributes).intercept(existing)
+
+                assertEquals(
+                    "inherited=$inherited, configured=$configured",
+                    original + (datasetKey to (configured ?: "react_native")),
+                    intercepted.attributes.asMap(),
+                )
+                assertEquals(original, existing.attributes.asMap())
+            }
+        }
+    }
+
 }
