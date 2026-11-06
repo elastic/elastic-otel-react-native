@@ -102,8 +102,8 @@ spans on both platforms.
 
 ### Crash reporting
 
-EDOT Android and EDOT iOS capture native crashes; see
-[Crash reporting](configuration.md#crash-reporting).
+EDOT Android and EDOT iOS capture native crashes. See
+[Crash reporting](configuration.md#crash-reporting) for configuration.
 
 ### Widget tap events
 
