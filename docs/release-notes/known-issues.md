@@ -1,6 +1,10 @@
 ---
 navigation_title: Known issues
 description: Known issues for the Elastic Distribution of OpenTelemetry React Native (EDOT React Native).
+applies_to:
+  stack:
+  serverless:
+    observability:
 products:
   - id: cloud-serverless
   - id: observability

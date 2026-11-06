@@ -1,6 +1,12 @@
 ---
 navigation_title: Configuration
 description: Configuration options for the Elastic Distribution of OpenTelemetry React Native (EDOT React Native).
+applies_to:
+  stack:
+  serverless:
+    observability:
+  product:
+    edot_react_native: preview 0.1.0
 products:
   - id: cloud-serverless
   - id: observability
@@ -154,8 +160,8 @@ throws; see [Initialization and errors](#initialization-and-errors).
 
 The URL must use `http` or `https`, include a host, and contain no query,
 fragment, or signal-specific suffix such as `/v1/traces`. A gateway prefix such
-as `https://gateway.example/tenant/otel` is valid. The native SDK appends signal
-paths to the supplied base URL. The URL scheme selects TLS or plaintext
+as `https://gateway.example/tenant/otel` is valid. For OTLP/HTTP, the native SDK appends
+signal paths to the supplied base URL. The URL scheme selects TLS or plaintext
 transport.
 
 OTLP/HTTP is the default transport. Select `"exportProtocol": "grpc"`, Android
@@ -217,8 +223,8 @@ Swift equivalent once from `AppDelegate` before React Native starts.
 
 A missing configuration file, invalid JSON, an unknown key, a value of the
 wrong type, or an invalid value throws `BootstrapException` from
-`initialize(this)` on Android and from `initialize()` on iOS. The message names
-the file and the offending key or value. An invalid `BootstrapConfiguration`
+`initialize(this)` on Android and from `initialize()` on iOS. The message describes
+the configuration or file error. An invalid `BootstrapConfiguration`
 passed in code throws `BootstrapException` the same way. Telemetry is not
 initialized. Because the file is bundled at build time, the error appears on
 the first run of the build that contains it.
@@ -241,12 +247,12 @@ invalid log handles emit no log.
 
 ## Crash reporting
 
-EDOT Android and EDOT iOS record crashes on the device and export them as
-`app.crash` log records the next time the app starts. On Android, the EDOT
-Android crash plugin, which `setup-android` or the Expo config plugin applies,
-records uncaught JVM exceptions. In a release build, an uncaught JavaScript error that terminates
-the app is recorded the same way. EDOT iOS enables native crash reporting by
-default. Crash reporting has no JavaScript setting.
+EDOT Android and EDOT iOS report native crashes as `app.crash` log records.
+On Android, the EDOT Android crash plugin, which `setup-android` or the Expo
+config plugin applies, records uncaught JVM exceptions and attempts to flush
+the logs before the app terminates. EDOT iOS enables native crash reporting
+by default, stores a crash report on the device, and exports it the next time
+the app starts. Crash reporting has no JavaScript setting.
 
 Crash events appear in the "Crashes" section of each platform's Application
 Overview dashboard. Refer to
