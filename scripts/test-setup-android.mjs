@@ -21,7 +21,6 @@ import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import {
   chmod,
-  cp,
   lstat,
   mkdir,
   readFile,
@@ -35,6 +34,11 @@ import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { verifyFixtureBabelPlugin } from './verify-fixture-babel-plugin.mjs';
+import {
+  copyFixture,
+  EXTERNAL_FIXTURE,
+  prepareExternalFixture,
+} from './external-fixture.mjs';
 
 import {
   APPLY_PLUGIN_LINES,
@@ -46,7 +50,6 @@ import {
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const FIXTURE = join(ROOT, 'fixture');
 const WORK = join(ROOT, 'build', 'setup-android-tests');
-const EXTERNAL_FIXTURE = join(ROOT, 'build', 'external-fixture');
 const BIN = join(ROOT, 'bin', 'elastic-otel-react-native.mjs');
 const ROOT_BUILD = 'android/build.gradle';
 const APP_BUILD = 'android/app/build.gradle';
@@ -70,19 +73,6 @@ async function readEdotAndroidVersion() {
     throw new Error(`${path} must declare exactly one edotAndroidVersion.`);
   }
   return versions[0];
-}
-
-async function copyFixture(destination) {
-  await rm(destination, { recursive: true, force: true });
-  await mkdir(dirname(destination), { recursive: true });
-  await cp(FIXTURE, destination, {
-    recursive: true,
-    filter(source) {
-      return !['node_modules', '.gradle', '.kotlin', 'build', '.cxx'].includes(
-        source.split('/').at(-1),
-      );
-    },
-  });
 }
 
 async function snapshot(directory) {
@@ -234,78 +224,16 @@ async function assertConfigured(projectRoot, paths = [ROOT_BUILD, APP_BUILD]) {
   }
 }
 
-async function adjustExternalPackageLink(projectRoot) {
-  const packagePath = join(projectRoot, 'package.json');
-  const packageJson = JSON.parse(await readFile(packagePath, 'utf8'));
-  packageJson.dependencies['@elastic/otel-react-native'] = 'file:../..';
-  await writeFile(packagePath, `${JSON.stringify(packageJson, null, 2)}\n`);
-
-  const lockPath = join(projectRoot, 'package-lock.json');
-  const lock = JSON.parse(await readFile(lockPath, 'utf8'));
-  lock.packages[''].dependencies['@elastic/otel-react-native'] = 'file:../..';
-  lock.packages['../..'] = lock.packages['..'];
-  delete lock.packages['..'];
-  lock.packages['node_modules/@elastic/otel-react-native'].resolved = '../..';
-  await writeFile(lockPath, `${JSON.stringify(lock, null, 2)}\n`);
-}
-
 // Installs the packed package into an external fixture copy, runs the
 // installed command there, and builds it. npm run fixture:build then builds
 // the same set-up project.
 async function verifySupportedFlow() {
-  await copyFixture(EXTERNAL_FIXTURE);
-  await adjustExternalPackageLink(EXTERNAL_FIXTURE);
-  const install = spawnSync('npm', ['ci', '--no-audit', '--no-fund'], {
-    cwd: EXTERNAL_FIXTURE,
-    encoding: 'utf8',
-  });
-  assert.equal(install.status, 0, install.stderr || install.stdout);
-  const packed = spawnSync(
-    'npm',
-    ['pack', '--json', '--pack-destination', join(ROOT, 'build')],
-    { cwd: ROOT, encoding: 'utf8' },
-  );
-  assert.equal(packed.status, 0, packed.stderr || packed.stdout);
-  const [{ filename }] = JSON.parse(packed.stdout);
-  const installPacked = spawnSync(
-    'npm',
-    [
-      'install',
-      '--no-save',
-      '--ignore-scripts',
-      '--no-audit',
-      '--no-fund',
-      join(ROOT, 'build', filename),
-    ],
-    { cwd: EXTERNAL_FIXTURE, encoding: 'utf8' },
-  );
-  assert.equal(
-    installPacked.status,
-    0,
-    installPacked.stderr || installPacked.stdout,
-  );
+  const installedBin = await prepareExternalFixture();
   verifyFixtureBabelPlugin(EXTERNAL_FIXTURE);
-  const installedBin = join(
-    EXTERNAL_FIXTURE,
-    'node_modules',
-    '.bin',
-    process.platform === 'win32'
-      ? 'elastic-otel-react-native.cmd'
-      : 'elastic-otel-react-native',
-  );
   const installedBinMetadata = await lstat(installedBin);
   assert.ok(
     installedBinMetadata.isFile() || installedBinMetadata.isSymbolicLink(),
   );
-  // npm run fixture:ios:build builds this project with the reference that
-  // setup-ios adds.
-  const iosRun = runCli(EXTERNAL_FIXTURE, installedBin, 'setup-ios');
-  assert.equal(iosRun.exitCode, 0, iosRun.output);
-  assert.match(
-    iosRun.output,
-    /Updated ios\/EDOTReactNativeFixture\.xcodeproj\/project\.pbxproj\n/,
-  );
-
   // Fresh project: both files gain the lines, and no EDOT version.
   const original = await snapshot(EXTERNAL_FIXTURE);
   const setup = runCli(EXTERNAL_FIXTURE, installedBin);
