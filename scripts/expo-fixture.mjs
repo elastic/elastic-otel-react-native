@@ -126,6 +126,21 @@ function runOrThrow(command, arguments_, cwd) {
   return stdout;
 }
 
+// Prebuilds only the platform under test. The command is logged so CI logs
+// show each prebuild's platform.
+function prebuild(cleanFlag, runner = runOrThrow) {
+  const arguments_ = [
+    'expo',
+    'prebuild',
+    cleanFlag,
+    '--no-install',
+    '--platform',
+    PLATFORM,
+  ];
+  console.log(`npx ${arguments_.join(' ')}`);
+  return runner('npx', arguments_);
+}
+
 async function findFile(directory, name) {
   for (const entry of await readdir(directory, {
     withFileTypes: true,
@@ -152,26 +167,29 @@ async function assertOnce(path, expected) {
 
 // Each edit of the config plugin appears exactly once.
 async function assertEdits() {
-  await assertOnce(ROOT_BUILD, [PLUGIN_PORTAL_LINE, ...CLASSPATH_LINES]);
-  await assertOnce(APP_BUILD, [...APPLY_PLUGIN_LINES, CONFIG_SCRIPT_LINE]);
-  await assertOnce(
-    await findFile(
-      join(FIXTURE, 'android', 'app', 'src'),
-      'MainApplication.kt',
-    ),
-    [KOTLIN_IMPORT_LINE, KOTLIN_INITIALIZE_LINE],
-  );
-  await assertOnce(
-    await findFile(join(FIXTURE, 'ios', APP_NAME), 'AppDelegate.swift'),
-    [SWIFT_IMPORT_LINE, SWIFT_INITIALIZE_CALL],
-  );
-  assert.equal(
-    (await readFile(join(FIXTURE, XCODE_PROJECT), 'utf8')).split(
-      CONFIG_FILE_REFERENCE_PATH,
-    ).length - 1,
-    1,
-    `${XCODE_PROJECT} must reference ${CONFIG_FILE_REFERENCE_PATH} exactly once.`,
-  );
+  if (PLATFORM === 'android') {
+    await assertOnce(ROOT_BUILD, [PLUGIN_PORTAL_LINE, ...CLASSPATH_LINES]);
+    await assertOnce(APP_BUILD, [...APPLY_PLUGIN_LINES, CONFIG_SCRIPT_LINE]);
+    await assertOnce(
+      await findFile(
+        join(FIXTURE, 'android', 'app', 'src'),
+        'MainApplication.kt',
+      ),
+      [KOTLIN_IMPORT_LINE, KOTLIN_INITIALIZE_LINE],
+    );
+  } else {
+    await assertOnce(
+      await findFile(join(FIXTURE, 'ios', APP_NAME), 'AppDelegate.swift'),
+      [SWIFT_IMPORT_LINE, SWIFT_INITIALIZE_CALL],
+    );
+    assert.equal(
+      (await readFile(join(FIXTURE, XCODE_PROJECT), 'utf8')).split(
+        CONFIG_FILE_REFERENCE_PATH,
+      ).length - 1,
+      1,
+      `${XCODE_PROJECT} must reference ${CONFIG_FILE_REFERENCE_PATH} exactly once.`,
+    );
+  }
 }
 
 async function verifyAndroidDesugaringRejection() {
@@ -185,7 +203,7 @@ async function verifyAndroidDesugaringRejection() {
   buildProperties[1].android.minSdkVersion = 24;
   try {
     await writeFile(appJsonPath, `${JSON.stringify(appJson, null, 2)}\n`);
-    runOrThrow('npx', ['expo', 'prebuild', '--clean', '--no-install']);
+    prebuild('--clean');
     const paths = [APP_BUILD, 'android/gradle.properties'];
     const before = await Promise.all(
       paths.map((path) => readFile(join(FIXTURE, path), 'utf8')),
@@ -245,12 +263,7 @@ async function prepareFixture() {
   const movedConfigFile = join(TEMPORARY, CONFIG_FILE);
   await rename(CONFIG_PATH, movedConfigFile);
   try {
-    const rejected = run('npx', [
-      'expo',
-      'prebuild',
-      '--clean',
-      '--no-install',
-    ]);
+    const rejected = prebuild('--clean', run);
     assert.notEqual(rejected.status, 0, 'Prebuild without the file must fail.');
     assert.match(rejected.output, /elastic-otel-config\.json was not found/);
   } finally {
@@ -264,9 +277,9 @@ async function prepareFixture() {
   // Pods are installed later, because CocoaPods rewrites the Xcode project
   // file in its own format. A second prebuild over the generated projects
   // keeps each edit once.
-  runOrThrow('npx', ['expo', 'prebuild', '--clean', '--no-install']);
+  prebuild('--clean');
   await assertEdits();
-  runOrThrow('npx', ['expo', 'prebuild', '--no-clean', '--no-install']);
+  prebuild('--no-clean');
   await assertEdits();
 }
 

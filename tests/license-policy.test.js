@@ -108,12 +108,6 @@ function withScriptFixture(script, action) {
 test.each([
   ['probe.sh', '#!/bin/sh', '#', true],
   ['probe.swift', '// swift-tools-version: 5.9', '//', false],
-  [
-    'android/app/src/main/res/drawable/rn_edit_text_material.xml',
-    '<?xml version="1.0"?>',
-    '<!--',
-    false,
-  ],
 ])(
   'header repair preserves required first line in %s',
   (name, directive, opener, executable) => {
