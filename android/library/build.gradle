@@ -20,7 +20,11 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
     id("com.android.library")
-    id("org.jetbrains.kotlin.android")
+}
+
+// AGP 9 supplies built-in Kotlin; AGP 8 consumers still need the plugin.
+if (project.extensions.findByName("kotlin") == null) {
+    apply plugin: "org.jetbrains.kotlin.android"
 }
 
 android {
