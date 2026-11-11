@@ -114,6 +114,6 @@
     "typescript": "7.0.2"
   },
   "dependencies": {
-    "xcode": "^3.0.1"
+    "xcode": "^4.0.0"
   }
 }
