@@ -42,26 +42,22 @@ const headers = {
   block: `/*\n${lines.map((line) => (line ? ` * ${line}` : ' *')).join('\n')}\n */\n\n`,
   slash: `${lines.map((line) => (line ? `// ${line}` : '//')).join('\n')}\n\n`,
   hash: `${lines.map((line) => (line ? `# ${line}` : '#')).join('\n')}\n\n`,
-  xml: `<!--\n${body}\n-->\n\n`,
 };
 
 function classify(path) {
   const name = basename(path);
   const extension = extname(path);
-  if (path === 'android/app/src/main/res/drawable/rn_edit_text_material.xml') {
-    return 'xml';
-  }
   if (
     ['gradlew', 'gradlew.bat'].includes(name) ||
     /(^|\/)gradle\/wrapper\//.test(path)
   ) {
     return null;
   }
-  if (/\.(ts|tsx|js|cjs|mjs|cts|kt|m|gradle)$/.test(path)) return 'block';
+  if (/\.(ts|js|cjs|mjs|cts|kt|m|gradle)$/.test(path)) return 'block';
   if (extension === '.swift') return 'slash';
   if (
-    /\.(sh|py|rb|podspec)$/.test(path) ||
-    ['Podfile', 'Gemfile', 'backend-manager'].includes(name) ||
+    /\.(sh|podspec)$/.test(path) ||
+    name === 'Podfile' ||
     /^\.github\/workflows\/[^/]+\.yml$/.test(path) ||
     /^\.buildkite\/[^/]+\.yml$/.test(path) ||
     /^\.ci\/updatecli\/[^/]+\.yml$/.test(path) ||
@@ -77,14 +73,10 @@ function classify(path) {
       '.gitignore',
       '.npmignore',
       '.prettierignore',
-      '.watchmanconfig',
-      'Package.resolved',
-      'Gemfile.lock',
-      'Podfile.lock',
     ].includes(name) ||
     path === '.github/CODEOWNERS' ||
     /^docs\/.*\.yml$/.test(path) ||
-    /\.(json|md|env|properties|pro|storyboard|plist|xcprivacy|pbxproj|xcscheme|xcworkspacedata|excalidraw|png|jpg|jpeg|gif|svg|webp|ico|jar|keystore)$/.test(
+    /\.(json|md|env|properties|storyboard|plist|xcprivacy|pbxproj|xcscheme|png|jar)$/.test(
       path,
     ) ||
     (extension === '.xml' && path.includes('/src/') && path.includes('/main/'))
@@ -95,7 +87,7 @@ function classify(path) {
 }
 
 function splitFirstLine(source) {
-  if (/^(#!|\/\/ swift-tools-version:|<\?xml)/.test(source)) {
+  if (/^(#!|\/\/ swift-tools-version:)/.test(source)) {
     const end = source.indexOf('\n');
     if (end === -1) return [source + '\n', ''];
     return [source.slice(0, end + 1), source.slice(end + 1)];

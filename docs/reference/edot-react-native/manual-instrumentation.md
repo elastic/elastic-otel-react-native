@@ -1,6 +1,12 @@
 ---
 navigation_title: Manual instrumentation
 description: Learn how to manually instrument React Native applications using the Elastic Distribution of OpenTelemetry React Native (EDOT React Native) to create spans, correlate logs, and record widget clicks.
+applies_to:
+  stack:
+  serverless:
+    observability:
+  product:
+    edot_react_native: preview 0.1.0
 products:
   - id: cloud-serverless
   - id: observability

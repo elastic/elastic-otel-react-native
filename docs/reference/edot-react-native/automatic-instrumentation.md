@@ -1,6 +1,12 @@
 ---
 navigation_title: Automatic instrumentation
 description: Instrument React Native applications automatically using the Elastic Distribution of OpenTelemetry React Native (EDOT React Native).
+applies_to:
+  stack:
+  serverless:
+    observability:
+  product:
+    edot_react_native: preview 0.1.0
 products:
   - id: cloud-serverless
   - id: observability
@@ -96,8 +102,8 @@ spans on both platforms.
 
 ### Crash reporting
 
-EDOT Android and EDOT iOS record crashes and export them on the next launch;
-see [Crash reporting](configuration.md#crash-reporting).
+EDOT Android and EDOT iOS capture native crashes. See
+[Crash reporting](configuration.md#crash-reporting) for configuration.
 
 ### Widget tap events
 

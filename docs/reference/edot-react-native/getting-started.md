@@ -1,6 +1,12 @@
 ---
 navigation_title: Get started
 description: Set up the Elastic Distribution of OpenTelemetry React Native (EDOT React Native) to send data to Elastic.
+applies_to:
+  stack:
+  serverless:
+    observability:
+  product:
+    edot_react_native: preview 0.1.0
 products:
   - id: cloud-serverless
   - id: observability

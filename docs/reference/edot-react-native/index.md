@@ -1,6 +1,12 @@
 ---
 navigation_title: EDOT React Native
 description: The Elastic Distribution of OpenTelemetry React Native (EDOT React Native) lets React Native applications send telemetry to Elastic through EDOT Android and EDOT iOS.
+applies_to:
+  stack:
+  serverless:
+    observability:
+  product:
+    edot_react_native: preview 0.1.0
 products:
   - id: cloud-serverless
   - id: observability
@@ -15,6 +21,12 @@ the `@elastic/otel-react-native` package. It runs
 and [EDOT iOS](https://www.elastic.co/docs/reference/opentelemetry/edot-sdks/ios)
 in your React Native application, so the app sends traces, logs, and crash
 reports to Elastic with a few setup commands and a small JavaScript API.
+
+:::{important}
+EDOT React Native is released as a technical preview. The stack and serverless
+products referred to in this documentation are GA and compatible with EDOT
+React Native.
+:::
 
 EDOT React Native supports bare React Native applications and Expo
 applications that generate their native projects with `npx expo prebuild`.
@@ -101,8 +113,8 @@ clicks. See [Manual instrumentation](manual-instrumentation.md).
 
 ### Crash reporting
 
-Crashes are recorded on the device and exported the next time the app starts.
-See [Crash reporting](configuration.md#crash-reporting).
+EDOT Android and EDOT iOS capture native crashes. See
+[Crash reporting](configuration.md#crash-reporting).
 
 ## Try it out
 
