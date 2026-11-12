@@ -171,9 +171,10 @@ EOF
 ID and URL. If the run fails, the script prints the failed steps' log and
 the run URL; relay the failure message to the operator.
 
-If the script asks you to check the run before dispatching again, the run
-exists but its outcome is unknown. Do not dispatch again. Wait for the run
-with `gh run watch <run-id> --exit-status`, then continue from its outcome.
+If the script reports that the run's outcome is unknown, the run exists.
+Do not dispatch again. Run the command the message names,
+`skills/react-native-release-wizard/scripts/watch-run.sh <run-id>`, until it
+reports success or failure, then continue from that outcome.
 
 When the run succeeds, run `skills/react-native-release-wizard/scripts/release-state.sh`
 again and report the run URL with the outcome:
