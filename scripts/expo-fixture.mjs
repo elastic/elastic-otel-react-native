@@ -89,7 +89,6 @@ const IOS_APP = join(
 // expo-fixture/index.js logs this line when EDOT is ready.
 const READY_LINE = 'EDOT Expo fixture status: {"ready":true}';
 const TIMEOUT_SECONDS = 120;
-const IOS_MAJOR_VERSION_LIMIT = 27;
 const environment = {
   ...process.env,
   CI: '1',
@@ -421,17 +420,14 @@ async function launchIos() {
     runOrThrow('xcrun', ['simctl', 'list', 'runtimes', '--json']),
   )
     .runtimes.filter(
-      (candidate) =>
-        candidate.platform === 'iOS' &&
-        candidate.isAvailable &&
-        Number.parseInt(candidate.version, 10) < IOS_MAJOR_VERSION_LIMIT,
+      (candidate) => candidate.platform === 'iOS' && candidate.isAvailable,
     )
     .sort((left, right) =>
       right.version.localeCompare(left.version, undefined, { numeric: true }),
     )[0];
   assert.ok(
     runtime,
-    `The Expo fixture launch check needs an iOS simulator runtime below iOS ${IOS_MAJOR_VERSION_LIMIT}.`,
+    'The Expo fixture launch check needs an available iOS simulator runtime.',
   );
   const deviceType = runtime.supportedDeviceTypes
     .filter((type) => type.productFamily === 'iPhone')
