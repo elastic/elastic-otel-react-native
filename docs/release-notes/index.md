@@ -28,6 +28,18 @@ To check for security updates, go to [Security announcements for the Elastic sta
 
 % next_release_notes
 
+## 0.2.0 [edot-react-native-020-release-notes]
+
+**Release date:** November 12, 2026
+
+- Update EDOT Android (`co.elastic.otel.android:agent-sdk`) to 1.11.0: [#56](https://github.com/elastic/elastic-otel-react-native/pull/56)
+- Update `xcode` to v4: [#43](https://github.com/elastic/elastic-otel-react-native/pull/43)
+
+### Features and enhancements [edot-react-native-020-features-enhancements]
+
+- Support apps that use Android Gradle Plugin 9, and keep support for apps on Android Gradle Plugin 8: [#67](https://github.com/elastic/elastic-otel-react-native/pull/67)
+- Publish the npm package with signed provenance, which links each release to its source commit and publishing workflow: [#68](https://github.com/elastic/elastic-otel-react-native/pull/68)
+
 ## 0.1.0 [edot-react-native-010-release-notes]
 
 **Release date:** November 4, 2026
