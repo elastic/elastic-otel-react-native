@@ -35,9 +35,11 @@
 #
 # On success, prints `<run-id> <run-url>` on standard output.
 #
-# Exit status: 0 when the run succeeds; 1 when the dispatch fails, returns
-# no run, or the run fails, with the failed steps' log and the run URL on
-# standard error; 2 on a usage error.
+# Exit status: 0 when the run succeeds; 1 when the dispatch fails or returns
+# no run, when the run fails, with the failed steps' log and the run URL on
+# standard error, or when the run cannot be followed to its end, with the
+# run URL and a request to check it before dispatching again; 2 on a usage
+# error.
 
 set -euo pipefail
 
@@ -86,9 +88,32 @@ if [[ -z $run_id || -z $run_url ]]; then
 fi
 echo "Waiting for $run_url" >&2
 
-if ! gh run watch "$run_id" --repo "$repository" --exit-status >&2; then
+# The dispatch API returns the run ID before the run can be read.
+for attempt in 1 2 3 4 5 6; do
+  if gh run view "$run_id" --repo "$repository" --json status >/dev/null 2>&1; then
+    break
+  fi
+  if [[ $attempt -eq 6 ]]; then
+    echo "The $workflow run cannot be read yet; check it before dispatching again: $run_url" >&2
+    exit 1
+  fi
+  sleep 5
+done
+
+# The run's conclusion decides the outcome: the watch also exits non-zero
+# when it loses track of a run that is still in progress.
+gh run watch "$run_id" --repo "$repository" --compact --interval 10 >&2 || true
+conclusion=$(
+  gh run view "$run_id" --repo "$repository" --json status,conclusion \
+    --jq 'if .status == "completed" then .conclusion else "" end'
+) || conclusion=
+if [[ -z $conclusion ]]; then
+  echo "Stopped watching the $workflow run before it finished; check it before dispatching again: $run_url" >&2
+  exit 1
+fi
+if [[ $conclusion != success ]]; then
   gh run view "$run_id" --repo "$repository" --log-failed >&2 || true
-  echo "The $workflow run failed: $run_url" >&2
+  echo "The $workflow run ended with $conclusion: $run_url" >&2
   exit 1
 fi
 echo "$run_id $run_url"
