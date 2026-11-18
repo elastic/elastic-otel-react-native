@@ -164,6 +164,11 @@ as `https://gateway.example/tenant/otel` is valid. For OTLP/HTTP, the native SDK
 signal paths to the supplied base URL. The URL scheme selects TLS or plaintext
 transport.
 
+For TLS connections (`https`), the OTLP endpoint must present a certificate
+signed by a certificate authority (CA) trusted by the device. This can be a
+public CA or an internal CA trusted by the device. Self-signed endpoint
+certificates are not supported.
+
 OTLP/HTTP is the default transport. Select `"exportProtocol": "grpc"`, Android
 `Transport.GRPC`, or iOS `.grpc` only when the chosen endpoint accepts
 OTLP/gRPC.

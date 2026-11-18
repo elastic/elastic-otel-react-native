@@ -421,10 +421,8 @@ hierarchy and timing.
   [Automatic instrumentation](automatic-instrumentation.md).
 - To create your own spans, logs, and widget click events, see
   [Manual instrumentation](manual-instrumentation.md).
-- If telemetry does not appear, use the EDOT Android
-  [troubleshooting guide](docs-content://troubleshoot/ingest/opentelemetry/edot-sdks/android/index.md)
-  or the EDOT iOS
-  [troubleshooting guide](docs-content://troubleshoot/ingest/opentelemetry/edot-sdks/ios/index.md).
+- If telemetry does not appear, use the EDOT React Native
+  [troubleshooting guide](docs-content://troubleshoot/ingest/opentelemetry/edot-sdks/react-native/index.md).
 
 ## Remove the package
 

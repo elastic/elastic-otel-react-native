@@ -2,6 +2,7 @@ project: "EDOT React Native SDK docs"
 products:
   - id: edot-sdk
 cross_links:
+  - elastic-otel-react-native
   - docs-content
   - integration-docs
 toc:

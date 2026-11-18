@@ -5,4 +5,6 @@ toc:
   - file: automatic-instrumentation.md
   - file: manual-instrumentation.md
   - title: Troubleshooting
-    crosslink: docs-content://troubleshoot/ingest/opentelemetry/edot-sdks/index.md
+    crosslink: docs-content://troubleshoot/ingest/opentelemetry/edot-sdks/react-native/index.md
+  - title: Release notes
+    crosslink: elastic-otel-react-native://release-notes/index.md

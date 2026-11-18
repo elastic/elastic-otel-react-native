@@ -104,11 +104,11 @@ function headings(markdown) {
 const referenceToc = await load('docs/reference/edot-react-native/toc.yml');
 if (
   !referenceToc.includes(
-    'crosslink: docs-content://troubleshoot/ingest/opentelemetry/edot-sdks/index.md',
+    'crosslink: docs-content://troubleshoot/ingest/opentelemetry/edot-sdks/react-native/index.md',
   )
 ) {
   throw new Error(
-    'Reference navigation is missing the EDOT SDKs troubleshooting crosslink.',
+    'Reference navigation is missing the EDOT React Native troubleshooting crosslink.',
   );
 }
 
