@@ -70,22 +70,16 @@ drop a setting. String values must not be blank, except `$schema`, which only
 needs to be a string. Write each key once: a repeated key is not reported, and
 only one of its values is used.
 
-#### How the file reaches the app
+#### Bundle the configuration file
 
-On Android, `setup-android` applies the package's `elastic-otel.gradle`
-script in `android/app/build.gradle`. At build time the script copies
-`elastic-otel-config.json` into the application assets. If the file does not
-exist, the build logs a warning with the expected path and continues. In
-`MainApplication.onCreate`, `ElasticOtelReactNative.initialize(this)` reads
-the file from the assets and starts EDOT Android before React Native loads.
+Run [`setup-android`](getting-started.md#run-automated-android-setup) and
+[`setup-ios`](getting-started.md#set-up-ios), or follow
+[Set up an Expo app](getting-started.md#set-up-an-expo-app), to bundle
+`elastic-otel-config.json` with your app at build time. If the file does not
+exist, the Android build logs a warning with the expected path and continues.
 
-On iOS, `setup-ios` adds `elastic-otel-config.json` to the app target in the
-Xcode project. The entry references the file at the project root, path
-`../elastic-otel-config.json`, in the target's Copy Bundle Resources build
-phase, so each build copies the current file into the app bundle. At the start
-of `application(_:didFinishLaunchingWithOptions:)`,
-`try ElasticOtelReactNative.initialize()` reads the file from the app bundle
-and starts EDOT iOS before React Native starts.
+Initialize EDOT React Native before React Native starts; see
+[Bootstrap before React Native](getting-started.md#bootstrap-before-react-native).
 
 Rebuild the app after you change the file. For what happens when the file is
 missing or invalid, see [Initialization and errors](#initialization-and-errors).

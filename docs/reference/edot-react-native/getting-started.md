@@ -66,33 +66,8 @@ npx elastic-otel-react-native setup-android
 
 With Yarn, pnpm, or Bun, use `yarn`, `pnpm exec`, or `bunx` in place of `npx`.
 
-The command supports the React Native template's Groovy `buildscript` and
-`apply plugin` layout and edits two files:
-
-- In `android/build.gradle`, it adds `gradlePluginPortal()` after
-  `mavenCentral()` in the `buildscript` repositories, because the EDOT Android
-  Gradle plugins are published on the Gradle Plugin Portal. It adds the agent,
-  OkHttp, and crash plugin `classpath` lines after
-  `classpath("com.android.tools.build:gradle")`.
-- In `android/app/build.gradle`, it applies the three plugins and the
-  package's Gradle script after
-  `apply plugin: "com.facebook.react"`. The script copies
-  `elastic-otel-config.json` from the project root into the application assets
-  at build time; see [Configuration file](configuration.md#configuration-file).
-  It also checks the Android API and desugaring requirements above.
-
-The command skips lines that are already present, so running it again changes
-nothing. If a file or one of those anchor lines is missing, it changes no file,
-prints the lines to add by hand, and exits with an error; see
-[Manual host setup fallback](#manual-host-setup-fallback). When it finishes,
-review the changes with `git diff`.
-
-The `classpath` lines read the EDOT Android version from the installed
-package, so upgrading `@elastic/otel-react-native` needs no edit to your Gradle
-files.
-
-The command never edits `MainApplication`, credentials, endpoints, manifests,
-network security, or host tool versions.
+For supported project layouts and the changes the command makes, see
+[Android setup details](#android-setup-details).
 
 ## Set up iOS
 
@@ -102,23 +77,8 @@ From the same application root, run:
 npx elastic-otel-react-native setup-ios
 ```
 
-The command checks that the project uses the stock React Native Podfile
-structure and one Xcode project with one application target. It then adds
-`elastic-otel-config.json` to the app target in
-`ios/<App>.xcodeproj/project.pbxproj`. The entry references the file at the
-project root, path `../elastic-otel-config.json`, in the target's Copy Bundle
-Resources build phase, so each build copies the current file into the app
-bundle; see [Configuration file](configuration.md#configuration-file).
-
-If the project already references that path, the command changes nothing, so
-running it again is safe. If the layout checks fail, the Xcode project cannot
-be parsed, or the project does not have exactly one application target, it
-changes no file, prints the manual step, and exits with an error; see
-[Manual host setup fallback](#manual-host-setup-fallback). When it finishes,
-review the change with `git diff`.
-
-The command never edits `AppDelegate`, the Podfile, credentials, endpoints,
-bundle identifiers, signing settings, or other Xcode project content.
+For supported project layouts and the changes the command makes, see
+[iOS setup details](#ios-setup-details).
 
 Complete one more step by hand:
 
@@ -234,46 +194,6 @@ To remove the package from an Expo app, remove it from `expo.plugins`,
 remove the `@elastic/otel-react-native/babel-plugin` entry from
 `babel.config.js` if you added it, uninstall the package, and run
 `npx expo prebuild --clean`.
-
-## Manual host setup fallback
-
-For Android, add `gradlePluginPortal()` and the three EDOT Android `classpath`
-lines to the root `buildscript` block in `android/build.gradle`. Keep the
-version expression as shown; it reads the EDOT Android version from the
-installed package:
-
-```groovy
-buildscript {
-    repositories {
-        google()
-        mavenCentral()
-        gradlePluginPortal()
-    }
-    dependencies {
-        classpath("com.android.tools.build:gradle")
-        classpath("co.elastic.otel.android:agent-plugin:${findProject(':elastic_otel-react-native').properties['edotAndroidVersion']}")
-        classpath("co.elastic.otel.android.instrumentation:okhttp-plugin:${findProject(':elastic_otel-react-native').properties['edotAndroidVersion']}")
-        classpath("co.elastic.otel.android.instrumentation:crash-plugin:${findProject(':elastic_otel-react-native').properties['edotAndroidVersion']}")
-        classpath("com.facebook.react:react-native-gradle-plugin")
-        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin")
-    }
-}
-```
-
-Apply all three plugins and the package's Gradle script in
-`android/app/build.gradle`:
-
-```groovy
-apply plugin: "co.elastic.otel.android.agent"
-apply plugin: "co.elastic.otel.android.instrumentation.okhttp"
-apply plugin: "co.elastic.otel.android.instrumentation.crash"
-apply from: "../../node_modules/@elastic/otel-react-native/android/elastic-otel.gradle"
-```
-
-For iOS, add `elastic-otel-config.json` from the project root to the app
-target in Xcode as a reference, without copying it into the `ios` directory.
-Check that the file is listed in the target's Copy Bundle Resources build
-phase. Then complete the manual step in [Set up iOS](#set-up-ios).
 
 ## Bootstrap before React Native
 
@@ -410,6 +330,98 @@ hierarchy and timing.
 - Troubleshoot dashboard issues for
   [Android](integration-docs://reference/otel_android_dashboards.md#troubleshooting)
   and [iOS](integration-docs://reference/otel_ios_dashboards.md#troubleshooting).
+
+## Setup command details
+
+### Android setup details
+
+The command supports the React Native template's Groovy `buildscript` and
+`apply plugin` layout and edits two files:
+
+- In `android/build.gradle`, it adds `gradlePluginPortal()` after
+  `mavenCentral()` in the `buildscript` repositories, because the EDOT Android
+  Gradle plugins are published on the Gradle Plugin Portal. It adds the agent,
+  OkHttp, and crash plugin `classpath` lines after
+  `classpath("com.android.tools.build:gradle")`.
+- In `android/app/build.gradle`, it applies the three plugins and the
+  package's Gradle script after
+  `apply plugin: "com.facebook.react"`. The script copies
+  `elastic-otel-config.json` from the project root into the application assets
+  at build time; see [Configuration file](configuration.md#configuration-file).
+  It also checks the Android API and desugaring requirements above.
+
+The command skips lines that are already present, so running it again changes
+nothing. If a file or one of those anchor lines is missing, it changes no file,
+prints the lines to add by hand, and exits with an error; see
+[Manual host setup fallback](#manual-host-setup-fallback). When it finishes,
+review the changes with `git diff`.
+
+The `classpath` lines read the EDOT Android version from the installed
+package, so upgrading `@elastic/otel-react-native` needs no edit to your Gradle
+files.
+
+The command never edits `MainApplication`, credentials, endpoints, manifests,
+network security, or host tool versions.
+
+### iOS setup details
+
+The command checks that the project uses the stock React Native Podfile
+structure and one Xcode project with one application target. It then adds
+`elastic-otel-config.json` to the app target in
+`ios/<App>.xcodeproj/project.pbxproj`. The entry references the file at the
+project root, path `../elastic-otel-config.json`, in the target's Copy Bundle
+Resources build phase, so each build copies the current file into the app
+bundle; see [Configuration file](configuration.md#configuration-file).
+
+If the project already references that path, the command changes nothing, so
+running it again is safe. If the layout checks fail, the Xcode project cannot
+be parsed, or the project does not have exactly one application target, it
+changes no file, prints the manual step, and exits with an error; see
+[Manual host setup fallback](#manual-host-setup-fallback). When it finishes,
+review the change with `git diff`.
+
+The command never edits `AppDelegate`, the Podfile, credentials, endpoints,
+bundle identifiers, signing settings, or other Xcode project content.
+
+## Manual host setup fallback
+
+For Android, add `gradlePluginPortal()` and the three EDOT Android `classpath`
+lines to the root `buildscript` block in `android/build.gradle`. Keep the
+version expression as shown; it reads the EDOT Android version from the
+installed package:
+
+```groovy
+buildscript {
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
+    dependencies {
+        classpath("com.android.tools.build:gradle")
+        classpath("co.elastic.otel.android:agent-plugin:${findProject(':elastic_otel-react-native').properties['edotAndroidVersion']}")
+        classpath("co.elastic.otel.android.instrumentation:okhttp-plugin:${findProject(':elastic_otel-react-native').properties['edotAndroidVersion']}")
+        classpath("co.elastic.otel.android.instrumentation:crash-plugin:${findProject(':elastic_otel-react-native').properties['edotAndroidVersion']}")
+        classpath("com.facebook.react:react-native-gradle-plugin")
+        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin")
+    }
+}
+```
+
+Apply all three plugins and the package's Gradle script in
+`android/app/build.gradle`:
+
+```groovy
+apply plugin: "co.elastic.otel.android.agent"
+apply plugin: "co.elastic.otel.android.instrumentation.okhttp"
+apply plugin: "co.elastic.otel.android.instrumentation.crash"
+apply from: "../../node_modules/@elastic/otel-react-native/android/elastic-otel.gradle"
+```
+
+For iOS, add `elastic-otel-config.json` from the project root to the app
+target in Xcode as a reference, without copying it into the `ios` directory.
+Check that the file is listed in the target's Copy Bundle Resources build
+phase. Then complete the manual step in [Set up iOS](#set-up-ios).
 
 ## What's next?
 
