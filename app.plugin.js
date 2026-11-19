@@ -91,7 +91,7 @@ function editGradleFile(config, edits) {
 function requireLanguage(config, language, name) {
   if (config.modResults.language !== language) {
     throw new Error(
-      `${displayPath(config)} is not ${name}. Add the bootstrap lines from the getting-started guide manually.`,
+      `${displayPath(config)} is not ${name}. The Expo config plugin requires an Expo-generated ${name} file. Regenerate the native projects with npx expo prebuild --clean. This replaces the generated native directories and discards manual changes there.`,
     );
   }
 }
