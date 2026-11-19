@@ -17,18 +17,17 @@
  */
 
 import { spawnSync } from 'node:child_process';
-import {
-  mkdirSync,
-  readFileSync,
-  realpathSync,
-  rmSync,
-  writeFileSync,
-} from 'node:fs';
-import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
+import assert from 'node:assert/strict';
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import {
+  EXTERNAL_FIXTURE,
+  prepareExternalFixture,
+} from './external-fixture.mjs';
+
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const EXTERNAL_FIXTURE = join(ROOT, 'build', 'external-fixture');
 const IOS = join(EXTERNAL_FIXTURE, 'ios');
 const DERIVED_DATA = join(ROOT, 'build', 'ios-fixture-derived-data');
 const CONFIG_FILE = join(EXTERNAL_FIXTURE, 'elastic-otel-config.json');
@@ -71,88 +70,48 @@ function run(command, arguments_, cwd = IOS) {
       `${command} ${arguments_.join(' ')} failed.\n${diagnostics || output.slice(-8_000)}`,
     );
   }
+  return execution.stdout;
 }
 
-const packed = spawnSync(
-  'npm',
-  ['pack', '--json', '--pack-destination', join(ROOT, 'build')],
-  {
-    cwd: ROOT,
-    env: environment,
-    encoding: 'utf8',
-  },
+const installedBin = await prepareExternalFixture(environment);
+// setup-ios adds the root configuration file to the app target, so each
+// build copies it into the app bundle.
+const setup = run(installedBin, ['setup-ios'], EXTERNAL_FIXTURE);
+assert.match(
+  setup,
+  /Updated ios\/EDOTReactNativeFixture\.xcodeproj\/project\.pbxproj\n/,
 );
-if (packed.status !== 0) {
-  throw new Error(packed.stderr || packed.stdout);
-}
-const [{ filename }] = JSON.parse(packed.stdout);
-const tarball = join(ROOT, 'build', filename);
+run('pod', ['install']);
+const build = () =>
+  run('xcodebuild', [
+    'build',
+    '-workspace',
+    'EDOTReactNativeFixture.xcworkspace',
+    '-scheme',
+    'EDOTReactNativeFixture',
+    '-configuration',
+    'Debug',
+    '-destination',
+    'generic/platform=iOS Simulator',
+    '-derivedDataPath',
+    DERIVED_DATA,
+    'CODE_SIGNING_ALLOWED=NO',
+  ]);
+const assertBundled = (expected) => {
+  if (readFileSync(BUNDLED_CONFIG_FILE, 'utf8') !== expected) {
+    throw new Error(`The app bundle does not hold the current ${CONFIG_FILE}.`);
+  }
+};
+build();
+const original = readFileSync(CONFIG_FILE, 'utf8');
+assertBundled(original);
+const edited = `${original}\n`;
+writeFileSync(CONFIG_FILE, edited);
 try {
-  run(
-    'npm',
-    [
-      'install',
-      '--no-save',
-      '--ignore-scripts',
-      '--no-audit',
-      '--no-fund',
-      tarball,
-    ],
-    EXTERNAL_FIXTURE,
-  );
-  const installedPackage = realpathSync(
-    join(EXTERNAL_FIXTURE, 'node_modules', '@elastic', 'otel-react-native'),
-  );
-  const installedRelative = relative(EXTERNAL_FIXTURE, installedPackage);
-  if (
-    isAbsolute(installedRelative) ||
-    installedRelative === '..' ||
-    installedRelative.startsWith(`..${sep}`)
-  ) {
-    throw new Error(
-      'The iOS fixture must build the packed npm package, not a sibling checkout.',
-    );
-  }
-
-  run('pod', ['install']);
-  const build = () =>
-    run('xcodebuild', [
-      'build',
-      '-workspace',
-      'EDOTReactNativeFixture.xcworkspace',
-      '-scheme',
-      'EDOTReactNativeFixture',
-      '-configuration',
-      'Debug',
-      '-destination',
-      'generic/platform=iOS Simulator',
-      '-derivedDataPath',
-      DERIVED_DATA,
-      'CODE_SIGNING_ALLOWED=NO',
-    ]);
-  // setup-ios, run on this fixture by npm run setup:test, adds the root
-  // configuration file to the app target, so each build copies it into the
-  // app bundle.
-  const assertBundled = (expected) => {
-    if (readFileSync(BUNDLED_CONFIG_FILE, 'utf8') !== expected) {
-      throw new Error(
-        `The app bundle does not hold the current ${CONFIG_FILE}.`,
-      );
-    }
-  };
   build();
-  const original = readFileSync(CONFIG_FILE, 'utf8');
-  assertBundled(original);
-  const edited = `${original}\n`;
-  writeFileSync(CONFIG_FILE, edited);
-  try {
-    build();
-    assertBundled(edited);
-  } finally {
-    writeFileSync(CONFIG_FILE, original);
-  }
+  assertBundled(edited);
 } finally {
-  rmSync(tarball, { force: true });
+  writeFileSync(CONFIG_FILE, original);
 }
 
 console.log(

@@ -116,7 +116,7 @@ jobs:
           if [ -n "$latest" ] && [ "$(printf '%s\n' "$VERSION" "$latest" | sort -V | tail -n 1)" != "$VERSION" ]; then
             tag="latest-${VERSION%.*}"
           fi
-          npm publish --tag "$tag"
+          npm publish --provenance --tag "$tag"
 
       - name: Finalize release
         id: finalize

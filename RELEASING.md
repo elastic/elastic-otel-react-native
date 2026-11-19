@@ -92,7 +92,7 @@ which:
 1. Confirms the merged commit carries release version `x.y.z` and that no
    `vx.y.z` tag exists yet.
 2. Publishes `@elastic/otel-react-native` `x.y.z` to npm from the merged
-   commit.
+   commit with signed npm provenance.
 3. Creates the `vx.y.z` tag at the merged commit.
 4. Creates the GitHub Release.
 5. For a release from `main`, commits the next `-SNAPSHOT` version on
@@ -150,6 +150,27 @@ after `0.2.0`, is published with the `latest-X.Y` dist-tag, here
 `latest-0.1`, and `latest` stays on the newer version. Users install it
 with `npm install @elastic/otel-react-native@latest-0.1`.
 
+## Verify npm provenance
+
+New publications include a signed attestation linking the package tarball to
+the source commit, publishing workflow, and run. Check the release's
+attestation metadata:
+
+```sh
+npm view @elastic/otel-react-native@<version> dist.attestations --json
+```
+
+In a clean temporary project, install that exact version with lifecycle
+scripts disabled and verify its attestation:
+
+```sh
+npm install --ignore-scripts @elastic/otel-react-native@<version>
+npm audit signatures
+```
+
+Confirm that the audit verifies the package's provenance attestation, not
+only its registry signature.
+
 ## Failure and recovery
 
 Use **Re-run failed jobs** on the failed publish run. Every publish and
@@ -159,6 +180,9 @@ already done, so the rerun continues from the failed step.
 - A version that is already on the npm registry counts as published. The
   rerun skips the publish and continues with the tag and the GitHub Release.
 - If the npm registry is down, wait for it to recover, then rerun.
+- If provenance generation fails, publication and release finalization stop.
+  Resolve the error in the failed step's log, then rerun. Do not retry
+  publication without provenance.
 - If the run log says the tag already exists, do not push or move it. Rerun so
   the remaining steps finish.
 - If a tag exists at another commit, stop. Do not move it.

@@ -80,16 +80,6 @@ spans and logs that represent your app's own features and workflows, and then:
 
 ## Features
 
-### Native SDK ownership
-
-EDOT Android and EDOT iOS initialize OpenTelemetry in your app and own export,
-buffering, sessions, sampling, automatic instrumentation, and crash reporting.
-On Android, the app applies the EDOT Android agent, OkHttp, and crash Gradle
-plugins. On iOS, EDOT iOS provides its URLSession, view-controller, lifecycle,
-system-metric, persistence, session, and crash behavior with its default
-configuration. Both SDKs start from native code before React Native loads; see
-[Bootstrap before React Native](getting-started.md#bootstrap-before-react-native).
-
 ### Host setup commands
 
 The [`setup-android`](getting-started.md#run-automated-android-setup) and

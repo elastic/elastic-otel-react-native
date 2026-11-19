@@ -36,15 +36,20 @@ React Native starts:
   [EDOT iOS documentation](https://www.elastic.co/docs/reference/opentelemetry/edot-sdks/ios)
   for what each one records.
 
-Widget tap events are opt-in. To record them, add the package plugin to
-`babel.config.js`:
+Widget tap events are opt-in. To record them, add
+`'@elastic/otel-react-native/babel-plugin'` to the existing `plugins` array in
+`babel.config.js`, creating the array if needed. Keep all existing presets and
+plugins: bare React Native projects keep `module:@react-native/babel-preset`,
+and Expo projects keep `babel-preset-expo`. This fragment shows only the plugin
+addition, not a complete Babel configuration:
 
+<!-- prettier-ignore -->
 ```js
-module.exports = {
-  presets: ['module:@react-native/babel-preset'],
-  plugins: ['@elastic/otel-react-native/babel-plugin'],
-};
+plugins: ['@elastic/otel-react-native/babel-plugin'],
 ```
+
+If your Expo project has no `babel.config.js`, follow
+[Set up an Expo app](getting-started.md#set-up-an-expo-app) to create it.
 
 With no options, each tap that runs the `onPress` handler of a `Button`,
 `Pressable`, `TouchableOpacity`, `TouchableHighlight`,
@@ -158,32 +163,31 @@ An entry's list replaces the list under `interactions`.
 
 List the components your app taps under `interactions.components`, each with
 the instrumentations to apply. `click: {}` records a click when `onPress`
-runs:
+runs. Update the same plugin entry in your existing `plugins` array with these
+options, keeping your other plugins and presets:
 
+<!-- prettier-ignore -->
 ```js
-module.exports = {
-  presets: ['module:@react-native/babel-preset'],
-  plugins: [
-    [
-      '@elastic/otel-react-native/babel-plugin',
-      {
-        interactions: {
-          components: [
-            // A design-system button defined in the app
-            { name: 'AppButton', instrumentations: { click: {} } },
-            // A component library's button, identified by its label
-            {
-              name: 'Button',
-              from: 'react-native-paper',
-              widgetId: ['label', '@component'],
-              instrumentations: { click: {} },
-            },
-          ],
-        },
+plugins: [
+  [
+    '@elastic/otel-react-native/babel-plugin',
+    {
+      interactions: {
+        components: [
+          // A design-system button defined in the app
+          { name: 'AppButton', instrumentations: { click: {} } },
+          // A component library's button, identified by its label
+          {
+            name: 'Button',
+            from: 'react-native-paper',
+            widgetId: ['label', '@component'],
+            instrumentations: { click: {} },
+          },
+        ],
       },
-    ],
+    },
   ],
-};
+],
 ```
 
 `name` is the component's exported name, so

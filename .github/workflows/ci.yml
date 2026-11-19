@@ -45,12 +45,6 @@ jobs:
       - uses: actions/checkout@v7
       - name: npm ci
         run: npm ci
-      # The iOS group needs the external fixture from setup:test and the
-      # Android autolinking output from fixture:build.
-      - name: npm run setup:test
-        run: npm run setup:test
-      - name: npm run fixture:build
-        run: npm run fixture:build
       - name: npm run validate:ios
         run: npm run validate:ios
 

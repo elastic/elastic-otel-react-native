@@ -10,19 +10,20 @@ API, and opt-in build-time tap instrumentation.
 
 The package supports Android and iOS in bare React Native applications and in
 Expo applications that generate their native projects with prebuild. See the
-[minimum versions](docs/reference/edot-react-native/getting-started.md#requirements).
+[minimum versions](https://www.elastic.co/docs/reference/opentelemetry/edot-sdks/react-native/getting-started#requirements).
 
 ## Documentation
 
-- [Overview](docs/reference/edot-react-native/index.md)
-- [Get started](docs/reference/edot-react-native/getting-started.md): install
+- [Overview](https://www.elastic.co/docs/reference/opentelemetry/edot-sdks/react-native)
+- [Get started](https://www.elastic.co/docs/reference/opentelemetry/edot-sdks/react-native/getting-started): install
   the package, set up the native hosts, and bootstrap each SDK.
-- [Configuration](docs/reference/edot-react-native/configuration.md): the
+- [Configuration](https://www.elastic.co/docs/reference/opentelemetry/edot-sdks/react-native/configuration): the
   configuration file, configuring in code, and initialization errors.
-- [Automatic instrumentation](docs/reference/edot-react-native/automatic-instrumentation.md)
-- [Manual instrumentation](docs/reference/edot-react-native/manual-instrumentation.md):
+- [Automatic instrumentation](https://www.elastic.co/docs/reference/opentelemetry/edot-sdks/react-native/automatic-instrumentation)
+- [Manual instrumentation](https://www.elastic.co/docs/reference/opentelemetry/edot-sdks/react-native/manual-instrumentation):
   readiness, spans, logs, and widget clicks from JavaScript.
-- [Release notes](docs/release-notes/index.md)
+- [Troubleshooting](https://www.elastic.co/docs/troubleshoot/ingest/opentelemetry/edot-sdks/react-native)
+- [Release notes](https://www.elastic.co/docs/release-notes/edot/sdks/react-native)
 
 ## Related project
 

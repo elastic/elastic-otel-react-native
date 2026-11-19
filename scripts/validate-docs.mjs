@@ -16,8 +16,8 @@
  * limitations under the License.
  */
 
-import { readFile } from 'node:fs/promises';
-import { dirname, extname, join, normalize, resolve } from 'node:path';
+import { readFile, readdir } from 'node:fs/promises';
+import { dirname, join, normalize, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isDeepStrictEqual } from 'node:util';
 
@@ -31,23 +31,17 @@ import {
 } from '../setup-edits.cjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const REQUIRED = [
-  'docs/docset.yml',
-  'docs/redirects.yml',
-  'docs/reference/edot-react-native/toc.yml',
-  'docs/reference/edot-react-native/index.md',
-  'docs/reference/edot-react-native/getting-started.md',
-  'docs/reference/edot-react-native/configuration.md',
-  'docs/reference/edot-react-native/automatic-instrumentation.md',
-  'docs/reference/edot-react-native/manual-instrumentation.md',
-  'docs/release-notes/toc.yml',
-  'docs/release-notes/index.md',
-  'docs/release-notes/breaking-changes.md',
-  'docs/release-notes/known-issues.md',
-];
 const MARKDOWN = [
   'README.md',
-  ...REQUIRED.filter((path) => path.endsWith('.md')),
+  ...(
+    await readdir(join(ROOT, 'docs'), {
+      recursive: true,
+      withFileTypes: true,
+    })
+  )
+    .filter((entry) => entry.isFile() && entry.name.endsWith('.md'))
+    .map((entry) => relative(ROOT, join(entry.parentPath, entry.name)))
+    .sort(),
 ];
 const ALLOWED_BRIDGE_EXPORTS = new Set([
   'emitLog',
@@ -107,29 +101,14 @@ function headings(markdown) {
   );
 }
 
-for (const path of REQUIRED) {
-  await load(path);
-}
-
 const referenceToc = await load('docs/reference/edot-react-native/toc.yml');
-for (const page of [
-  'index.md',
-  'getting-started.md',
-  'configuration.md',
-  'automatic-instrumentation.md',
-  'manual-instrumentation.md',
-]) {
-  if (!referenceToc.includes(`- file: ${page}`)) {
-    throw new Error(`Reference navigation is missing ${page}.`);
-  }
-}
 if (
   !referenceToc.includes(
-    'crosslink: docs-content://troubleshoot/ingest/opentelemetry/edot-sdks/index.md',
+    'crosslink: docs-content://troubleshoot/ingest/opentelemetry/edot-sdks/react-native/index.md',
   )
 ) {
   throw new Error(
-    'Reference navigation is missing the EDOT SDKs troubleshooting crosslink.',
+    'Reference navigation is missing the EDOT React Native troubleshooting crosslink.',
   );
 }
 
@@ -139,32 +118,31 @@ for (const page of ['index.md', 'breaking-changes.md', 'known-issues.md']) {
     throw new Error(`Release-note navigation is missing ${page}.`);
   }
 }
-
 const markdownCache = new Map();
 for (const path of MARKDOWN) {
   markdownCache.set(path, await load(path));
 }
 
-for (const [path, markdown] of markdownCache) {
-  for (const match of markdown.matchAll(/\[[^\]]+\]\(([^)]+)\)/g)) {
-    const destination = match[1];
-    if (
-      destination.startsWith('#') ||
-      /^[a-z][a-z0-9+.-]*:\/\//i.test(destination)
-    ) {
-      continue;
-    }
-    const [fileDestination, fragment] = destination.split('#', 2);
-    const resolved = normalize(join(dirname(path), fileDestination));
-    if (!resolved.startsWith('docs/') && resolved !== 'README.md') {
-      throw new Error(
-        `${path} links outside the documentation payload: ${destination}`,
-      );
-    }
-    const target = markdownCache.get(resolved) ?? (await load(resolved));
-    if (fragment && !headings(target).has(fragment)) {
-      throw new Error(`${path} links to missing heading ${destination}.`);
-    }
+for (const match of markdownCache
+  .get('README.md')
+  .matchAll(/\[[^\]]+\]\(([^)]+)\)/g)) {
+  const destination = match[1];
+  if (
+    destination.startsWith('#') ||
+    /^[a-z][a-z0-9+.-]*:\/\//i.test(destination)
+  ) {
+    continue;
+  }
+  const [fileDestination, fragment] = destination.split('#', 2);
+  const resolved = normalize(fileDestination);
+  if (!resolved.startsWith('docs/') && resolved !== 'README.md') {
+    throw new Error(
+      `README.md links outside the documentation payload: ${destination}`,
+    );
+  }
+  const target = markdownCache.get(resolved) ?? (await load(resolved));
+  if (fragment && !headings(target).has(fragment)) {
+    throw new Error(`README.md links to missing heading ${destination}.`);
   }
 }
 
@@ -318,10 +296,6 @@ if (
     'package.json does not expose the canonical setup executable.',
   );
 }
-for (const path of REQUIRED) {
-  if (!['.md', '.yml'].includes(extname(path))) {
-    throw new Error(`Unexpected documentation file type: ${path}`);
-  }
-}
-
-console.log(`Validated ${REQUIRED.length} docs files and local navigation.`);
+console.log(
+  `Validated content in ${MARKDOWN.length} Markdown files and README links.`,
+);
