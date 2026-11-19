@@ -30,7 +30,7 @@
       "maximum": 1
     },
     "resourceAttributes": {
-      "description": "Resource attributes. service.name is required; service.version defaults to the application version.",
+      "description": "Resource attributes. service.name is required; service.version defaults to the application version. data_stream.dataset defaults to react_native, replacing any native SDK dataset. An explicit dataset here overrides that default.",
       "type": "object",
       "required": ["service.name"],
       "propertyNames": {
