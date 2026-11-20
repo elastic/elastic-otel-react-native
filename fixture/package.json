@@ -2,6 +2,9 @@
   "name": "edot-react-native-fixture",
   "private": true,
   "version": "0.0.0",
+  "scripts": {
+    "postinstall": "node scripts/align-react-native-kotlin.mjs"
+  },
   "dependencies": {
     "@elastic/otel-react-native": "file:..",
     "react": "19.3.1",
