@@ -1,7 +1,7 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": ["local>elastic/renovate-config"],
-  "addLabels": ["dependencies"],
+  "addLabels": ["dependencies", "oblt-aw/ai/merge-ready"],
   "ignorePaths": [
     ".github/workflows/**",
     "expo-fixture/**",
