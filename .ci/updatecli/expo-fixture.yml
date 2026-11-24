@@ -93,3 +93,4 @@ actions:
     spec:
       labels:
         - dependencies
+        - oblt-aw/ai/merge-ready
