@@ -1,4 +1,5 @@
 {
+  "repository": "elastic/elastic-otel-react-native",
   "tagPrefix": "v",
   "productName": "EDOT React Native",
   "versionFile": "package.json",
