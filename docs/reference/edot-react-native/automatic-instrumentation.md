@@ -67,6 +67,8 @@ The native instrumentations use the EDOT Android and EDOT iOS defaults. The
 Babel plugin takes options. These are the plugin options with their effective
 defaults written out:
 
+{applies_to}`edot_react_native: preview 0.3.0` The four `scroll` entries below configure scroll events.
+
 <!-- prettier-ignore -->
 ```js
 plugins: [['@elastic/otel-react-native/babel-plugin', {
@@ -268,6 +270,10 @@ events are absent, set `debug: true`, confirm that native bootstrap completed,
 and rebuild the bundle with the Metro cache reset.
 
 ### Widget scroll events
+
+```{applies_to}
+edot_react_native: preview 0.3.0
+```
 
 The Babel plugin records one `app.widget.scroll` event when the user lifts
 their finger at the end of a drag on `ScrollView`, `FlatList`, `SectionList`,
