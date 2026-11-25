@@ -70,6 +70,14 @@ enum BridgeInput {
     return value
   }
 
+  static func exceptionType(_ value: String) throws -> String {
+    guard !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    else {
+      throw BootstrapException("An exception type is required.")
+    }
+    return value
+  }
+
   static func eventTimestamp(_ value: Double) throws -> Date {
     guard value.isFinite else {
       throw BootstrapException("A finite event timestamp is required.")

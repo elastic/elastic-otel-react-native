@@ -27,6 +27,7 @@ final class TelemetryTests: XCTestCase {
   private var tracerProvider: TracerProviderSdk!
   private var telemetry: ManualTelemetry!
   private var interactions: InteractionTelemetry!
+  private var crashes: CrashTelemetry!
 
   override func setUp() {
     super.setUp()
@@ -50,6 +51,7 @@ final class TelemetryTests: XCTestCase {
     interactions = InteractionTelemetry(
       openTelemetry: { OpenTelemetry.instance }
     )
+    crashes = CrashTelemetry(openTelemetry: { OpenTelemetry.instance })
   }
 
   func testRootAndExplicitParentSpansUseNativeRelationships() throws {
@@ -191,6 +193,93 @@ final class TelemetryTests: XCTestCase {
     )
     XCTAssertNil(record.body)
     XCTAssertFalse(record.spanContext?.isValid ?? false)
+  }
+
+  func testJavaScriptCrashEmitsTheAgreedRecord() throws {
+    XCTAssertTrue(
+      crashes.recordJavaScriptCrash(
+        type: "TypeError",
+        message: "boom",
+        stacktrace: "at a:1\nat b:2",
+        timestamp: 1_234
+      )
+    )
+
+    let record = try XCTUnwrap(logExporter.finished.first)
+    XCTAssertEqual(logExporter.finished.count, 1)
+    XCTAssertEqual(
+      record.instrumentationScopeInfo.name,
+      crashInstrumentationScope
+    )
+    XCTAssertEqual(record.eventName, crashEventName)
+    XCTAssertEqual(record.severity, .fatal)
+    XCTAssertEqual(
+      record.attributes,
+      [
+        "otel.event.name": .string(crashEventName),
+        "exception.type": .string("TypeError"),
+        "exception.message": .string("boom"),
+        "exception.stacktrace": .string("at a:1\nat b:2"),
+        "elastic.exception.source": .string("javascript")
+      ]
+    )
+    XCTAssertEqual(record.timestamp, Date(timeIntervalSince1970: 1.234))
+    XCTAssertNil(record.body)
+    XCTAssertFalse(record.spanContext?.isValid ?? false)
+  }
+
+  func testJavaScriptCrashAcceptsAnEmptyMessageAndStacktrace() {
+    XCTAssertTrue(
+      crashes.recordJavaScriptCrash(
+        type: "Error",
+        message: "",
+        stacktrace: "",
+        timestamp: 1
+      )
+    )
+    XCTAssertEqual(logExporter.finished.count, 1)
+  }
+
+  func testJavaScriptCrashReturnsFalseWithoutEmissionForInvalidInput() {
+    XCTAssertFalse(
+      crashes.recordJavaScriptCrash(
+        type: " ",
+        message: "m",
+        stacktrace: "s",
+        timestamp: 1
+      )
+    )
+    XCTAssertFalse(
+      crashes.recordJavaScriptCrash(
+        type: "Error",
+        message: "m",
+        stacktrace: "s",
+        timestamp: .nan
+      )
+    )
+    XCTAssertFalse(
+      crashes.recordJavaScriptCrash(
+        type: "Error",
+        message: "m",
+        stacktrace: "s",
+        timestamp: .infinity
+      )
+    )
+    XCTAssertTrue(logExporter.finished.isEmpty)
+  }
+
+  func testJavaScriptCrashReturnsFalseWhenTheSdkIsNotReady() {
+    let notReady = CrashTelemetry(openTelemetry: { throw NotReady() })
+
+    XCTAssertFalse(
+      notReady.recordJavaScriptCrash(
+        type: "Error",
+        message: "m",
+        stacktrace: "s",
+        timestamp: 1
+      )
+    )
+    XCTAssertTrue(logExporter.finished.isEmpty)
   }
 }
 
