@@ -26,6 +26,7 @@ import java.util.concurrent.TimeUnit
 internal const val INTERACTION_INSTRUMENTATION_SCOPE =
     "@elastic/otel-react-native.interactions"
 internal const val WIDGET_CLICK_EVENT_NAME = "app.widget.click"
+internal const val WIDGET_SCROLL_EVENT_NAME = "app.widget.scroll"
 
 internal class InteractionTelemetry(
     private val openTelemetry: () -> OpenTelemetry,
@@ -34,12 +35,25 @@ internal class InteractionTelemetry(
         widgetId: String,
         widgetName: String?,
         timestamp: Double,
+    ) = recordWidgetEvent(WIDGET_CLICK_EVENT_NAME, widgetId, widgetName, timestamp)
+
+    fun recordWidgetScroll(
+        widgetId: String,
+        widgetName: String?,
+        timestamp: Double,
+    ) = recordWidgetEvent(WIDGET_SCROLL_EVENT_NAME, widgetId, widgetName, timestamp)
+
+    private fun recordWidgetEvent(
+        eventName: String,
+        widgetId: String,
+        widgetName: String?,
+        timestamp: Double,
     ) {
         val builder = openTelemetry()
             .logsBridge
             .get(INTERACTION_INSTRUMENTATION_SCOPE)
             .logRecordBuilder()
-            .setEventName(WIDGET_CLICK_EVENT_NAME)
+            .setEventName(eventName)
             .setTimestamp(
                 BridgeInput.eventTimestamp(timestamp).toLong(),
                 TimeUnit.MILLISECONDS,
@@ -47,7 +61,7 @@ internal class InteractionTelemetry(
             .setContext(Context.root())
             .setAttribute(
                 AttributeKey.stringKey("otel.event.name"),
-                WIDGET_CLICK_EVENT_NAME,
+                eventName,
             )
             .setAttribute(
                 AttributeKey.stringKey("app.widget.id"),

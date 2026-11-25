@@ -192,6 +192,46 @@ final class TelemetryTests: XCTestCase {
     XCTAssertNil(record.body)
     XCTAssertFalse(record.spanContext?.isValid ?? false)
   }
+
+  func testWidgetScrollEmitsAnEventRecordAtTheSuppliedTimestamp() throws {
+    try interactions.recordWidgetScroll(
+      widgetId: "forecast.list",
+      widgetName: "Forecast",
+      timestamp: 1_234
+    )
+
+    XCTAssertEqual(logExporter.finished.count, 1)
+    let record = try XCTUnwrap(
+      logExporter.finished.first
+    )
+    XCTAssertEqual(
+      record.instrumentationScopeInfo.name,
+      interactionInstrumentationScope
+    )
+    XCTAssertEqual(record.eventName, "app.widget.scroll")
+    XCTAssertEqual(
+      Set(record.attributes.keys),
+      ["otel.event.name", "app.widget.id", "app.widget.name"]
+    )
+    XCTAssertEqual(
+      record.attributes["otel.event.name"],
+      .string("app.widget.scroll")
+    )
+    XCTAssertEqual(
+      record.attributes["app.widget.id"],
+      .string("forecast.list")
+    )
+    XCTAssertEqual(
+      record.attributes["app.widget.name"],
+      .string("Forecast")
+    )
+    XCTAssertEqual(
+      record.timestamp,
+      Date(timeIntervalSince1970: 1.234)
+    )
+    XCTAssertNil(record.body)
+    XCTAssertFalse(record.spanContext?.isValid ?? false)
+  }
 }
 
 private struct NotReady: Error {}

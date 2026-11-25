@@ -52,4 +52,11 @@ RCT_EXTERN_METHOD(recordWidgetClick
                   : (RCTPromiseResolveBlock)resolve rejecter
                   : (RCTPromiseRejectBlock)reject)
 
+RCT_EXTERN_METHOD(recordWidgetScroll
+                  : (NSString *)widgetId widgetName
+                  : (NSString * _Nullable)widgetName timestamp
+                  : (double)timestamp resolver
+                  : (RCTPromiseResolveBlock)resolve rejecter
+                  : (RCTPromiseRejectBlock)reject)
+
 @end
