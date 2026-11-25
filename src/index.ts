@@ -159,6 +159,8 @@ export async function recordWidgetScroll(
 
 type InteractionHandler = (...args: never[]) => unknown;
 
+const scrollNoop = () => {};
+
 // One wrapper per handler, interaction, widget id, and widget name, so a memoized
 // component keeps a stable prop while each element records its own identity.
 // Each handler's map keeps its most recently used MAX_WRAPPERS_PER_HANDLER
@@ -215,14 +217,14 @@ export function __wrapScrollHandler<T>(
   componentName: string,
   widgetIdCandidates: readonly unknown[],
   widgetNameCandidates: readonly unknown[],
-): T {
+): T extends undefined ? InteractionHandler : T {
   return wrapInteractionHandler(
-    handler,
+    handler === undefined ? scrollNoop : handler,
     componentName,
     widgetIdCandidates,
     widgetNameCandidates,
     'scroll',
-  );
+  ) as T extends undefined ? InteractionHandler : T;
 }
 
 function wrapInteractionHandler<T>(

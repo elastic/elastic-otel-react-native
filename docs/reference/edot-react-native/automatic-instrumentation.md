@@ -285,7 +285,8 @@ A scroll event is recorded when a drag ends, from `onScrollEndDrag`.
 
 Scroll events follow `interactions.enabled` and each component entry's
 `enabled` setting. For a custom component that forwards `onScrollEndDrag`,
-use `instrumentations: { scroll: {} }`. The handler name is fixed.
+use `instrumentations: { scroll: {} }` to wrap the handler the app passes.
+The handler name is fixed.
 The [component matching rules](#track-your-own-and-third-party-components)
 also apply to scroll components. When a spread could supply the drag handler
 or replace its handler or widget id, the plugin skips the element.

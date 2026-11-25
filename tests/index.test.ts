@@ -35,6 +35,7 @@ import { NativeModules } from 'react-native';
 import {
   __widgetContent,
   __wrapPressHandler,
+  __wrapScrollHandler,
   emitLog,
   getStatus,
   recordWidgetClick,
@@ -404,4 +405,21 @@ test('bridge-unavailable errors are platform-neutral', () => {
   } finally {
     NativeModules.ElasticOtelReactNative = saved;
   }
+});
+
+test('the scroll wrapper is stable for a missing handler and an unchanged identity', () => {
+  const first = __wrapScrollHandler(
+    undefined,
+    'FlatList',
+    ['items'],
+    ['Items'],
+  );
+  const rerendered = __wrapScrollHandler(
+    undefined,
+    'FlatList',
+    ['items'],
+    ['Items'],
+  );
+  expect(typeof first).toBe('function');
+  expect(rerendered).toBe(first);
 });

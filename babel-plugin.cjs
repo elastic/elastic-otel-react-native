@@ -139,14 +139,14 @@ module.exports = function elasticOtelReactNativeBabelPlugin({ types: t }) {
         const component = resolveComponent(path);
         const entry = component && findEntry(config.entries, component);
         if (entry) {
-          instrument(t, state, path, component.name, entry);
+          instrument(t, state, path, component, entry);
         }
       },
     },
   };
 };
 
-function instrument(t, state, path, componentName, entry) {
+function instrument(t, state, path, component, entry) {
   for (const [kind, definition] of Object.entries(INSTRUMENTATIONS)) {
     if (
       entry[kind] &&
@@ -159,7 +159,7 @@ function instrument(t, state, path, componentName, entry) {
         t,
         state,
         path,
-        componentName,
+        component,
         entry,
         entry[kind],
         definition,
@@ -172,11 +172,12 @@ function instrumentInteraction(
   t,
   state,
   path,
-  componentName,
+  component,
   entry,
   options,
   definition,
 ) {
+  const componentName = component.name;
   const attributes = path.get('attributes');
 
   // A spread after a handler or a widget id prop, such as widget-id or
@@ -203,7 +204,16 @@ function instrumentInteraction(
   let handlerAttributes = attributes.filter((attribute) =>
     options.handlers.includes(attributeName(attribute)),
   );
-  if (definition.inject && handlerAttributes.length === 0) {
+  if (
+    definition.inject &&
+    handlerAttributes.length === 0 &&
+    BUILT_IN_COMPONENTS.some(
+      (builtIn) =>
+        builtIn.name === component.name &&
+        builtIn.from === component.from &&
+        builtIn.instrumentations.scroll,
+    )
+  ) {
     if (lastSpread !== -1) {
       report(
         state,
@@ -217,7 +227,7 @@ function instrumentInteraction(
       t.jsxAttribute(
         t.jsxIdentifier(options.handlers[0]),
         t.jsxExpressionContainer(
-          t.arrowFunctionExpression([], t.blockStatement([])),
+          t.unaryExpression('void', t.numericLiteral(0)),
         ),
       ),
     );

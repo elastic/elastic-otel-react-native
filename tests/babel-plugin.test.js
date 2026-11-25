@@ -640,7 +640,7 @@ test('accepts the full option shape with the effective defaults written out', ()
 
 test('scroll respects interaction and entry options and preserves non-functions', () => {
   const mixed = transform(
-    "import { ScrollView, Pressable } from 'react-native'; function AppList() { return <ScrollView><Pressable onPress={tap} /></ScrollView>; } <AppList />;",
+    "import { ScrollView, Pressable } from 'react-native'; function AppList() { return <ScrollView><Pressable onPress={tap} /></ScrollView>; } <AppList onScrollEndDrag={drag} />;",
     components({ name: 'AppList', instrumentations: { scroll: {} } }),
   );
   expect(mixed).toContain('__wrapPressHandler');
@@ -671,4 +671,54 @@ test('scroll respects interaction and entry options and preserves non-functions'
   ).toThrow(
     /Unknown option interactions\.components\[0\]\.instrumentations\.scroll\.handler/,
   );
+});
+
+test('injects a wrapped missing handler into React Native scroll built-ins without an arrow', () => {
+  for (const name of [
+    'ScrollView',
+    'FlatList',
+    'SectionList',
+    'VirtualizedList',
+  ]) {
+    const output = transform(
+      `import { ${name} as List } from 'react-native'; <List />;`,
+    );
+    expect(output).toContain(
+      `onScrollEndDrag={_elasticOtelWrapScrollHandler(void 0, "${name}", ["${name}"], [])}`,
+    );
+    expect(output).not.toContain('=>');
+  }
+});
+
+test('leaves a configured custom scroll component and its default handler unchanged', () => {
+  const source = `
+    import { ScrollView } from 'react-native';
+    function AppList({ onScrollEndDrag = savePosition }) {
+      return <ScrollView onScrollEndDrag={onScrollEndDrag} />;
+    }
+    <AppList />;
+  `;
+  const output = transform(
+    source,
+    components({ name: 'AppList', instrumentations: { scroll: {} } }),
+  );
+  expect(output).toBe(transform(source, { interactions: { enabled: false } }));
+  expect(output).toContain('<AppList />');
+  expect(output).not.toContain('__wrapScrollHandler');
+  const imported = transform(
+    "import { ScrollView } from './components'; <ScrollView />;",
+    components({ name: 'ScrollView', instrumentations: { scroll: {} } }),
+  );
+  expect(imported).not.toContain('onScrollEndDrag');
+});
+
+test('wraps an explicit handler on a configured custom scroll component once', () => {
+  const output = transform(
+    "import { AppList } from './components'; <AppList onScrollEndDrag={savePosition} />;",
+    components({ name: 'AppList', instrumentations: { scroll: {} } }),
+  );
+  expect(output).toContain(
+    'onScrollEndDrag={_elasticOtelWrapScrollHandler(savePosition, "AppList", ["AppList"], [])}',
+  );
+  expect(output.match(/_elasticOtelWrapScrollHandler\(/g)).toHaveLength(1);
 });
