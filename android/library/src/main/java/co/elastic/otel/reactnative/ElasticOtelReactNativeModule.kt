@@ -79,6 +79,14 @@ class ElasticOtelReactNativeModule(
         }
     }
 
+    @ReactMethod(isBlockingSynchronousMethod = true)
+    fun recordJavaScriptCrash(
+        type: String,
+        message: String,
+        stacktrace: String,
+        timestamp: Double,
+    ): Boolean = ElasticOtelReactNative.isReady()
+
     private fun <T> resolve(promise: Promise, block: () -> T) {
         try {
             promise.resolve(block())

@@ -110,6 +110,16 @@ public final class ElasticOtelReactNativeModule: NSObject {
     }
   }
 
+  @objc(recordJavaScriptCrash:message:stacktrace:timestamp:)
+  public func recordJavaScriptCrash(
+    _ type: String,
+    message: String,
+    stacktrace: String,
+    timestamp: Double
+  ) -> NSNumber {
+    NSNumber(value: ElasticOtelReactNative.isReady)
+  }
+
   private func settle(
     _ resolve: RCTPromiseResolveBlock,
     reject: RCTPromiseRejectBlock,

@@ -52,4 +52,10 @@ RCT_EXTERN_METHOD(recordWidgetClick
                   : (RCTPromiseResolveBlock)resolve rejecter
                   : (RCTPromiseRejectBlock)reject)
 
+RCT_EXTERN__BLOCKING_SYNCHRONOUS_METHOD(recordJavaScriptCrash
+                                         : (NSString *)type message
+                                         : (NSString *)message stacktrace
+                                         : (NSString *)stacktrace timestamp
+                                         : (double)timestamp)
+
 @end
