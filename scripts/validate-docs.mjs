@@ -47,6 +47,7 @@ const ALLOWED_BRIDGE_EXPORTS = new Set([
   'emitLog',
   'endSpan',
   'getStatus',
+  'initialize',
   'recordWidgetClick',
   'startSpan',
 ]);
@@ -266,7 +267,7 @@ for (const example of configExamples) {
 
 for (const [path, markdown] of markdownCache) {
   for (const match of markdown.matchAll(
-    /import\s*\{([\s\S]*?)\}\s*from '@elastic\/otel-react-native';/g,
+    /import\s*\{([^}]*)\}\s*from '@elastic\/otel-react-native';/g,
   )) {
     const imports = match[1]
       .split(',')

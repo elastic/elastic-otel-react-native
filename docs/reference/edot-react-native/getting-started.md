@@ -240,6 +240,47 @@ because configuration and credentials belong to your application. React Native
 autolinking registers the package on both platforms; do not register it
 manually.
 
+## Capture JavaScript errors
+
+```{applies_to}
+edot_react_native: preview 0.3.0
+```
+
+EDOT React Native records each uncaught fatal JavaScript exception as an
+`app.crash` log record with `elastic.exception.source` set to `javascript`.
+Call `initialize` in your app entry file, before
+`AppRegistry.registerComponent`:
+
+```ts
+import { AppRegistry } from 'react-native';
+import { initialize } from '@elastic/otel-react-native';
+import App from './App';
+
+initialize().catch((error) => console.warn(error)); // <1>
+
+AppRegistry.registerComponent('MyApp', () => App);
+```
+
+1. Switches on JavaScript error capture once native bootstrap has run. The
+   promise rejects when native bootstrap has not run or the package is not
+   linked.
+
+Capture is on by default. To turn it off, call
+`initialize({ captureErrors: false })`.
+
+`initialize` does not initialize the native SDK and takes no endpoint or
+credential options; those belong to [native bootstrap](#bootstrap-before-react-native).
+The capture only records: it then calls the error handler that was installed
+before it, so your app terminates exactly as it does without EDOT React
+Native.
+
+Capture has these limits:
+
+- It records only fatal uncaught exceptions. Non-fatal errors and unhandled
+  promise rejections are not captured.
+- It does not capture errors thrown before the `initialize` promise resolves.
+- The native crash record for the same crash can also reach Elastic.
+
 ## Start sending telemetry
 
 With EDOT React Native initialized, your app sends telemetry to the OTLP

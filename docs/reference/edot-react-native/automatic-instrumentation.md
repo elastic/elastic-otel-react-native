@@ -107,7 +107,10 @@ spans on both platforms.
 
 ### Crash reporting
 
-EDOT Android and EDOT iOS capture native crashes. See
+EDOT Android and EDOT iOS capture native crashes. After your app calls
+`initialize()`, EDOT React Native also captures uncaught fatal JavaScript
+exceptions; see
+[Capture JavaScript errors](getting-started.md#capture-javascript-errors). See
 [Crash reporting](configuration.md#crash-reporting) for configuration.
 
 ### Widget tap events

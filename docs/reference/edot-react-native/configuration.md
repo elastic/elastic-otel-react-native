@@ -251,7 +251,13 @@ On Android, the EDOT Android crash plugin, which `setup-android` or the Expo
 config plugin applies, records uncaught JVM exceptions and attempts to flush
 the logs before the app terminates. EDOT iOS enables native crash reporting
 by default, stores a crash report on the device, and exports it the next time
-the app starts. Crash reporting has no JavaScript setting.
+the app starts.
+
+Uncaught fatal JavaScript exceptions are recorded by `initialize()`, which is
+on by default once your app calls it. `initialize({ captureErrors: false })`
+turns JavaScript error capture off, and it has no other option. See
+[Capture JavaScript errors](getting-started.md#capture-javascript-errors) for
+where to call it and what it captures.
 
 Crash events appear in the "Crashes" section of each platform's Application
 Overview dashboard. Refer to
