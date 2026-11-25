@@ -33,6 +33,7 @@ jest.mock('react-native', () => ({
 
 import { NativeModules } from 'react-native';
 import {
+  __createScrollHandler,
   __widgetContent,
   __wrapPressHandler,
   __wrapScrollHandler,
@@ -407,19 +408,16 @@ test('bridge-unavailable errors are platform-neutral', () => {
   }
 });
 
-test('the scroll wrapper is stable for a missing handler and an unchanged identity', () => {
-  const first = __wrapScrollHandler(
-    undefined,
-    'FlatList',
-    ['items'],
-    ['Items'],
-  );
-  const rerendered = __wrapScrollHandler(
-    undefined,
-    'FlatList',
-    ['items'],
-    ['Items'],
-  );
+test('the injected scroll handler is stable for an unchanged identity', () => {
+  const first = __createScrollHandler('FlatList', ['items'], ['Items']);
+  const rerendered = __createScrollHandler('FlatList', ['items'], ['Items']);
   expect(typeof first).toBe('function');
   expect(rerendered).toBe(first);
+});
+
+test('scroll preserves an app-supplied undefined handler', () => {
+  expect(
+    __wrapScrollHandler(undefined, 'AppList', ['items'], ['Items']),
+  ).toBeUndefined();
+  expect(mockNativeBridge.recordWidgetScroll).not.toHaveBeenCalled();
 });

@@ -217,14 +217,27 @@ export function __wrapScrollHandler<T>(
   componentName: string,
   widgetIdCandidates: readonly unknown[],
   widgetNameCandidates: readonly unknown[],
-): T extends undefined ? InteractionHandler : T {
+): T {
   return wrapInteractionHandler(
-    handler === undefined ? scrollNoop : handler,
+    handler,
     componentName,
     widgetIdCandidates,
     widgetNameCandidates,
     'scroll',
-  ) as T extends undefined ? InteractionHandler : T;
+  );
+}
+
+export function __createScrollHandler(
+  componentName: string,
+  widgetIdCandidates: readonly unknown[],
+  widgetNameCandidates: readonly unknown[],
+): InteractionHandler {
+  return __wrapScrollHandler(
+    scrollNoop,
+    componentName,
+    widgetIdCandidates,
+    widgetNameCandidates,
+  );
 }
 
 function wrapInteractionHandler<T>(

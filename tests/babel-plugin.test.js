@@ -684,9 +684,10 @@ test('injects a wrapped missing handler into React Native scroll built-ins witho
       `import { ${name} as List } from 'react-native'; <List />;`,
     );
     expect(output).toContain(
-      `onScrollEndDrag={_elasticOtelWrapScrollHandler(void 0, "${name}", ["${name}"], [])}`,
+      `onScrollEndDrag={_elasticOtelCreateScrollHandler("${name}", ["${name}"], [])}`,
     );
     expect(output).not.toContain('=>');
+    expect(transform(output)).toBe(output);
   }
 });
 
@@ -721,4 +722,5 @@ test('wraps an explicit handler on a configured custom scroll component once', (
     'onScrollEndDrag={_elasticOtelWrapScrollHandler(savePosition, "AppList", ["AppList"], [])}',
   );
   expect(output.match(/_elasticOtelWrapScrollHandler\(/g)).toHaveLength(1);
+  expect(output).not.toContain('__createScrollHandler');
 });

@@ -23,6 +23,7 @@ const { relative } = require('node:path');
 const PACKAGE_NAME = '@elastic/otel-react-native';
 const WRAPPER_EXPORT = '__wrapPressHandler';
 const SCROLL_WRAPPER_EXPORT = '__wrapScrollHandler';
+const SCROLL_HANDLER_EXPORT = '__createScrollHandler';
 const CONTENT_EXPORT = '__widgetContent';
 const REPORT_PREFIX = '[elastic-otel-react-native]';
 const CONTENT_MACRO = '@content';
@@ -201,6 +202,7 @@ function instrumentInteraction(
     return;
   }
 
+  let injectedHandler = false;
   let handlerAttributes = attributes.filter((attribute) =>
     options.handlers.includes(attributeName(attribute)),
   );
@@ -232,6 +234,7 @@ function instrumentInteraction(
       ),
     );
     handlerAttributes = [injected];
+    injectedHandler = true;
   }
   const handlers = handlerAttributes
     .map((attribute) => attribute.get('value'))
@@ -315,11 +318,12 @@ function instrumentInteraction(
   const widgetId = candidates(entry.widgetId);
   const widgetName = candidates(entry.widgetName);
 
+  const wrapper = injectedHandler ? SCROLL_HANDLER_EXPORT : definition.wrapper;
   for (const value of handlers) {
     value.replaceWith(
       t.jsxExpressionContainer(
-        t.callExpression(importedName(t, state, definition.wrapper), [
-          value.node.expression,
+        t.callExpression(importedName(t, state, wrapper), [
+          ...(injectedHandler ? [] : [value.node.expression]),
           t.stringLiteral(componentName),
           t.arrayExpression(widgetId.map((node) => t.cloneNode(node, true))),
           t.arrayExpression(widgetName.map((node) => t.cloneNode(node, true))),
@@ -343,7 +347,10 @@ function alreadyWrapped(path, expression, wrapper) {
   return Boolean(
     binding &&
     binding.path.isImportSpecifier() &&
-    exportedName(binding.path.node) === wrapper &&
+    (wrapper === SCROLL_WRAPPER_EXPORT
+      ? [wrapper, SCROLL_HANDLER_EXPORT]
+      : [wrapper]
+    ).includes(exportedName(binding.path.node)) &&
     binding.path.parent.source.value === PACKAGE_NAME,
   );
 }
@@ -358,7 +365,9 @@ function importedName(t, state, exportName) {
           ? 'elasticOtelWrapPressHandler'
           : exportName === SCROLL_WRAPPER_EXPORT
             ? 'elasticOtelWrapScrollHandler'
-            : 'elasticOtelWidgetContent',
+            : exportName === SCROLL_HANDLER_EXPORT
+              ? 'elasticOtelCreateScrollHandler'
+              : 'elasticOtelWidgetContent',
       ),
     );
   }
