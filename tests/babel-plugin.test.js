@@ -562,8 +562,8 @@ test.each([
   ],
   [
     'an unknown instrumentation',
-    components({ name: 'A', instrumentations: { scroll: {} } }),
-    /Unknown instrumentation interactions\.components\[0\]\.instrumentations\.scroll/,
+    components({ name: 'A', instrumentations: { hover: {} } }),
+    /Unknown instrumentation interactions\.components\[0\]\.instrumentations\.hover/,
   ],
   [
     'a true click shorthand',
@@ -636,4 +636,39 @@ test('accepts the full option shape with the effective defaults written out', ()
   `;
 
   expect(transform(source, defaults)).toBe(transform(source));
+});
+
+test('scroll respects interaction and entry options and preserves non-functions', () => {
+  const mixed = transform(
+    "import { ScrollView, Pressable } from 'react-native'; function AppList() { return <ScrollView><Pressable onPress={tap} /></ScrollView>; } <AppList />;",
+    components({ name: 'AppList', instrumentations: { scroll: {} } }),
+  );
+  expect(mixed).toContain('__wrapPressHandler');
+  expect(mixed.match(/_elasticOtelWrapScrollHandler\(/g)).toHaveLength(1);
+  const source = "import { ScrollView } from 'react-native'; <ScrollView />;";
+  expect(transform(source, { interactions: { enabled: false } })).not.toContain(
+    '__wrapScrollHandler',
+  );
+  expect(
+    transform(
+      source,
+      components({ name: 'ScrollView', from: 'react-native', enabled: false }),
+    ),
+  ).not.toContain('__wrapScrollHandler');
+  const nonFunction = transform(
+    "import { ScrollView } from 'react-native'; <ScrollView onScrollEndDrag={false} />;",
+  );
+  expect(nonFunction).toContain('onScrollEndDrag={false}');
+  expect(nonFunction).not.toContain('__wrapScrollHandler');
+  expect(() =>
+    transform(
+      source,
+      components({
+        name: 'ScrollView',
+        instrumentations: { scroll: { handler: 'onScroll' } },
+      }),
+    ),
+  ).toThrow(
+    /Unknown option interactions\.components\[0\]\.instrumentations\.scroll\.handler/,
+  );
 });

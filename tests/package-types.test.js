@@ -22,7 +22,7 @@ const ts = require('@typescript/typescript6');
 const root = path.resolve(__dirname, '..');
 const fileName = path.join(root, 'tests', 'consumer-types.ts');
 const source = `
-import { getStatus, startSpan, endSpan, emitLog, recordWidgetClick } from '@elastic/otel-react-native';
+import { getStatus, startSpan, endSpan, emitLog, recordWidgetClick, recordWidgetScroll } from '@elastic/otel-react-native';
 import type { PluginOptions } from '@elastic/otel-react-native/babel-plugin';
 
 export async function telemetry() {
@@ -30,6 +30,7 @@ export async function telemetry() {
   const handle: string = await startSpan('screen', { parentSpanHandle: 'parent' });
   await emitLog('screen opened', 'info', { spanHandle: handle });
   await recordWidgetClick({ widgetId: 'save', widgetName: 'Save', timestamp: 123 });
+  await recordWidgetScroll({ widgetId: 'items', widgetName: 'Items', timestamp: 123 });
   await endSpan(handle);
   return status;
 }
@@ -40,6 +41,8 @@ emitLog('screen opened', 'verbose');
 startSpan('screen', { parentSpanHandle: 123 });
 // @ts-expect-error widget clicks require a timestamp
 recordWidgetClick({ widgetId: 'save' });
+// @ts-expect-error widget scrolls require a timestamp
+recordWidgetScroll({ widgetId: 'items' });
 
 export const valid: PluginOptions = {
   debug: true,
@@ -47,6 +50,7 @@ export const valid: PluginOptions = {
     widgetId: ['widget-id', '@component'],
     components: [
       { name: 'AppButton', instrumentations: { click: {} } },
+      { name: 'AppList', instrumentations: { scroll: {} } },
       { name: 'Pressable', from: 'react-native', enabled: false },
     ],
   },
@@ -58,8 +62,11 @@ export const invalid: PluginOptions = { interactions: { components: [{ name: 'A'
 // @ts-expect-error an enabled entry lists its instrumentations
 export const noInstrumentations: PluginOptions = { interactions: { components: [{ name: 'A' }] } };
 
-// @ts-expect-error an enabled entry lists click
+// @ts-expect-error an enabled entry lists at least one instrumentation
 export const noClick: PluginOptions = { interactions: { components: [{ name: 'A', instrumentations: {} }] } };
+
+// @ts-expect-error scroll does not allow alternate handler props
+export const invalidScroll: PluginOptions = { interactions: { components: [{ name: 'A', instrumentations: { scroll: { handlers: ['onScroll'] } } }] } };
 `;
 
 // Type-checks an app's imports through the package exports.

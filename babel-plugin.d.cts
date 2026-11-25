@@ -37,7 +37,7 @@ declare namespace elasticOtelReactNativeBabelPlugin {
      * @default false
      */
     debug?: boolean;
-    /** Automatic interaction events for the components the app taps. */
+    /** Automatic interaction events for the components the app taps or scrolls. */
     interactions?: InteractionsOptions;
   }
 
@@ -65,7 +65,8 @@ declare namespace elasticOtelReactNativeBabelPlugin {
     /**
      * The components to instrument, in addition to `Button`, `Pressable`,
      * `TouchableOpacity`, `TouchableHighlight`, `TouchableWithoutFeedback`,
-     * and `TouchableNativeFeedback` from `react-native`. An entry with the
+     * `TouchableNativeFeedback`, `ScrollView`, `FlatList`, `SectionList`,
+     * and `VirtualizedList` from `react-native`. An entry with the
      * same `name` and `from` as one of those replaces it.
      */
     components?: ComponentOptions[];
@@ -108,10 +109,18 @@ declare namespace elasticOtelReactNativeBabelPlugin {
     instrumentations?: Partial<ComponentInstrumentations>;
   }
 
-  interface ComponentInstrumentations {
+  type ComponentInstrumentations = AvailableInstrumentations &
+    ({ click: ClickInstrumentation } | { scroll: ScrollInstrumentation });
+
+  interface AvailableInstrumentations {
     /** Record an `app.widget.click` event when a handler runs. */
-    click: ClickInstrumentation;
+    click?: ClickInstrumentation;
+    /** Record an `app.widget.scroll` event on `onScrollEndDrag`. */
+    scroll?: ScrollInstrumentation;
   }
+
+  /** Scroll always uses `onScrollEndDrag`; it has no configurable options. */
+  type ScrollInstrumentation = Record<string, never>;
 
   interface ClickInstrumentation {
     /**

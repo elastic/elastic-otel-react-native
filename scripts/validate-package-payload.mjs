@@ -132,6 +132,7 @@ for (const contract of [
   'func endSpan(',
   'func emitLog(',
   'func recordWidgetClick(',
+  'func recordWidgetScroll(',
 ]) {
   if (!iosModule.includes(contract)) {
     throw new Error(`The packed iOS module is missing ${contract}.`);
@@ -148,6 +149,7 @@ for (const exportedMethod of [
   'RCT_EXTERN_METHOD(endSpan',
   'RCT_EXTERN_METHOD(emitLog',
   'RCT_EXTERN_METHOD(recordWidgetClick',
+  'RCT_EXTERN_METHOD(recordWidgetScroll',
 ]) {
   if (!iosShim.includes(exportedMethod)) {
     throw new Error(`The packed iOS export shim is missing ${exportedMethod}.`);

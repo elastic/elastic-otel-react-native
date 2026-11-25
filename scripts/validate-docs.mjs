@@ -48,6 +48,7 @@ const ALLOWED_BRIDGE_EXPORTS = new Set([
   'endSpan',
   'getStatus',
   'recordWidgetClick',
+  'recordWidgetScroll',
   'startSpan',
 ]);
 

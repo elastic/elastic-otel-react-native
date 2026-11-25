@@ -22,6 +22,7 @@ const { relative } = require('node:path');
 
 const PACKAGE_NAME = '@elastic/otel-react-native';
 const WRAPPER_EXPORT = '__wrapPressHandler';
+const SCROLL_WRAPPER_EXPORT = '__wrapScrollHandler';
 const CONTENT_EXPORT = '__widgetContent';
 const REPORT_PREFIX = '[elastic-otel-react-native]';
 const CONTENT_MACRO = '@content';
@@ -30,7 +31,13 @@ const MACROS = [CONTENT_MACRO, COMPONENT_MACRO];
 
 // The instrumentation vocabulary the plugin owns, with each one's defaults.
 const INSTRUMENTATIONS = {
-  click: { handlers: ['onPress'] },
+  click: { handlers: ['onPress'], wrapper: WRAPPER_EXPORT, keys: ['handlers'] },
+  scroll: {
+    handlers: ['onScrollEndDrag'],
+    wrapper: SCROLL_WRAPPER_EXPORT,
+    inject: true,
+    keys: [],
+  },
 };
 
 const DEFAULT_WIDGET_ID = [
@@ -59,6 +66,13 @@ const BUILT_IN_COMPONENTS = [
     from: 'react-native',
     instrumentations: { click: { handlers: ['onPress'] } },
   })),
+  ...['ScrollView', 'FlatList', 'SectionList', 'VirtualizedList'].map(
+    (name) => ({
+      name,
+      from: 'react-native',
+      instrumentations: { scroll: {} },
+    }),
+  ),
 ];
 
 const PLUGIN_KEYS = ['debug', 'interactions'];
@@ -71,7 +85,6 @@ const COMPONENT_KEYS = [
   'widgetName',
   'instrumentations',
 ];
-const CLICK_KEYS = ['handlers'];
 
 const processedElements = new WeakSet();
 
@@ -125,7 +138,7 @@ module.exports = function elasticOtelReactNativeBabelPlugin({ types: t }) {
 
         const component = resolveComponent(path);
         const entry = component && findEntry(config.entries, component);
-        if (entry && !insideDeclarationOf(path, config.declarationNames)) {
+        if (entry) {
           instrument(t, state, path, component.name, entry);
         }
       },
@@ -134,12 +147,42 @@ module.exports = function elasticOtelReactNativeBabelPlugin({ types: t }) {
 };
 
 function instrument(t, state, path, componentName, entry) {
+  for (const [kind, definition] of Object.entries(INSTRUMENTATIONS)) {
+    if (
+      entry[kind] &&
+      !insideDeclarationOf(
+        path,
+        state.elasticOtel.config.declarationNames[kind],
+      )
+    ) {
+      instrumentInteraction(
+        t,
+        state,
+        path,
+        componentName,
+        entry,
+        entry[kind],
+        definition,
+      );
+    }
+  }
+}
+
+function instrumentInteraction(
+  t,
+  state,
+  path,
+  componentName,
+  entry,
+  options,
+  definition,
+) {
   const attributes = path.get('attributes');
 
   // A spread after a handler or a widget id prop, such as widget-id or
   // testID, can override its value.
   const guardedNames = [
-    ...entry.click.handlers,
+    ...options.handlers,
     ...entry.widgetId.filter((source) => !MACROS.includes(source)),
   ];
   const lastSpread = attributes.findLastIndex((attribute) =>
@@ -157,17 +200,60 @@ function instrument(t, state, path, componentName, entry) {
     return;
   }
 
-  const handlers = attributes
-    .filter((attribute) =>
-      entry.click.handlers.includes(attributeName(attribute)),
-    )
-    .map((attribute) => attribute.get('value'))
-    .filter(
-      (value) =>
-        value.isJSXExpressionContainer() &&
-        !value.get('expression').isJSXEmptyExpression() &&
-        !alreadyWrapped(path, value.node.expression),
+  let handlerAttributes = attributes.filter((attribute) =>
+    options.handlers.includes(attributeName(attribute)),
+  );
+  if (definition.inject && handlerAttributes.length === 0) {
+    if (lastSpread !== -1) {
+      report(
+        state,
+        path,
+        `${componentName} skipped: a spread may supply onScrollEndDrag`,
+      );
+      return;
+    }
+    const [injected] = path.pushContainer(
+      'attributes',
+      t.jsxAttribute(
+        t.jsxIdentifier(options.handlers[0]),
+        t.jsxExpressionContainer(
+          t.arrowFunctionExpression([], t.blockStatement([])),
+        ),
+      ),
     );
+    handlerAttributes = [injected];
+  }
+  const handlers = handlerAttributes
+    .map((attribute) => attribute.get('value'))
+    .filter((value) => {
+      if (
+        !value.isJSXExpressionContainer() ||
+        value.get('expression').isJSXEmptyExpression()
+      ) {
+        if (definition.inject)
+          report(
+            state,
+            path,
+            `${componentName} skipped: onScrollEndDrag is not a function expression`,
+          );
+        return false;
+      }
+      const expression = value.get('expression');
+      if (
+        definition.inject &&
+        (expression.isLiteral() ||
+          expression.isObjectExpression() ||
+          expression.isArrayExpression())
+      ) {
+        report(
+          state,
+          path,
+          `${componentName} skipped: onScrollEndDrag is not a function expression`,
+        );
+        return false;
+      }
+      return !alreadyWrapped(path, value.node.expression, definition.wrapper);
+    });
   if (handlers.length === 0) {
     return;
   }
@@ -222,7 +308,7 @@ function instrument(t, state, path, componentName, entry) {
   for (const value of handlers) {
     value.replaceWith(
       t.jsxExpressionContainer(
-        t.callExpression(importedName(t, state, WRAPPER_EXPORT), [
+        t.callExpression(importedName(t, state, definition.wrapper), [
           value.node.expression,
           t.stringLiteral(componentName),
           t.arrayExpression(widgetId.map((node) => t.cloneNode(node, true))),
@@ -235,7 +321,7 @@ function instrument(t, state, path, componentName, entry) {
 
 // A handler that a previous transform already wrapped calls the wrapper through
 // its import binding.
-function alreadyWrapped(path, expression) {
+function alreadyWrapped(path, expression, wrapper) {
   if (
     expression.type !== 'CallExpression' ||
     expression.callee.type !== 'Identifier'
@@ -247,7 +333,7 @@ function alreadyWrapped(path, expression) {
   return Boolean(
     binding &&
     binding.path.isImportSpecifier() &&
-    exportedName(binding.path.node) === WRAPPER_EXPORT &&
+    exportedName(binding.path.node) === wrapper &&
     binding.path.parent.source.value === PACKAGE_NAME,
   );
 }
@@ -260,7 +346,9 @@ function importedName(t, state, exportName) {
       program.scope.generateUidIdentifier(
         exportName === WRAPPER_EXPORT
           ? 'elasticOtelWrapPressHandler'
-          : 'elasticOtelWidgetContent',
+          : exportName === SCROLL_WRAPPER_EXPORT
+            ? 'elasticOtelWrapScrollHandler'
+            : 'elasticOtelWidgetContent',
       ),
     );
   }
@@ -326,7 +414,11 @@ function findEntry(entries, component) {
     entries.find(
       (entry) => entry.name === component.name && entry.from === null,
     );
-  return match?.enabled && match.click ? match : null;
+  return match?.enabled && hasInstrumentation(match) ? match : null;
+}
+
+function hasInstrumentation(entry) {
+  return Object.keys(INSTRUMENTATIONS).some((kind) => entry[kind]);
 }
 
 // A listed component forwards its handler to the elements it renders, which
@@ -534,7 +626,9 @@ function validateOptions(options) {
   }));
   const trackedNames = (list) =>
     new Set(
-      list.filter((entry) => entry.enabled && entry.click).map((e) => e.name),
+      list
+        .filter((entry) => entry.enabled && hasInstrumentation(entry))
+        .map((e) => e.name),
     );
 
   return {
@@ -544,8 +638,13 @@ function validateOptions(options) {
     trackedNames: trackedNames(entries),
     // A component defined in the same file matches only entries without
     // `from`, so only those entries mark a declaration as a listed component.
-    declarationNames: trackedNames(
-      entries.filter((entry) => entry.from === null),
+    declarationNames: Object.fromEntries(
+      Object.keys(INSTRUMENTATIONS).map((kind) => [
+        kind,
+        trackedNames(
+          entries.filter((entry) => entry.from === null && entry[kind]),
+        ),
+      ]),
     ),
   };
 }
@@ -598,13 +697,19 @@ function componentEntry(value, key) {
       );
     }
   }
-  const click = has(instrumentations, 'click')
-    ? clickInstrumentation(
-        instrumentations.click,
-        `${instrumentationsKey}.click`,
-      )
-    : null;
-  if (!click && enabled) {
+  const selected = Object.fromEntries(
+    Object.keys(INSTRUMENTATIONS).map((kind) => [
+      kind,
+      has(instrumentations, kind)
+        ? instrumentationOptions(
+            instrumentations[kind],
+            `${instrumentationsKey}.${kind}`,
+            kind,
+          )
+        : null,
+    ]),
+  );
+  if (!Object.values(selected).some(Boolean) && enabled) {
     throw new TypeError(
       `${key} must list an instrumentation in instrumentations or set enabled: false.`,
     );
@@ -620,25 +725,25 @@ function componentEntry(value, key) {
     widgetName: has(entry, 'widgetName')
       ? sourceList(entry.widgetName, `${key}.widgetName`)
       : null,
-    click,
+    ...selected,
   };
 }
 
-function clickInstrumentation(value, key) {
-  const click = plainObject(value, key);
-  onlyKeys(click, CLICK_KEYS, key);
-  if (!has(click, 'handlers')) {
-    return { handlers: INSTRUMENTATIONS.click.handlers };
+function instrumentationOptions(value, key, kind) {
+  const options = plainObject(value, key);
+  onlyKeys(options, INSTRUMENTATIONS[kind].keys, key);
+  if (!has(options, 'handlers')) {
+    return { handlers: INSTRUMENTATIONS[kind].handlers };
   }
 
   const handlersKey = `${key}.handlers`;
-  if (!Array.isArray(click.handlers) || click.handlers.length === 0) {
+  if (!Array.isArray(options.handlers) || options.handlers.length === 0) {
     throw new TypeError(
       `${handlersKey} must be a non-empty array of prop names.`,
     );
   }
   return {
-    handlers: click.handlers.map((handler, index) =>
+    handlers: options.handlers.map((handler, index) =>
       nonEmptyString(handler, `${handlersKey}[${index}]`),
     ),
   };

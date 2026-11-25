@@ -16,7 +16,7 @@ products:
 # Automatic instrumentation for React Native with EDOT SDK
 
 EDOT React Native can generate telemetry on your behalf, so you get HTTP spans,
-crash reports, and widget tap events without writing
+crash reports, and widget tap and scroll events without writing
 [manual instrumentation](manual-instrumentation.md).
 
 ## Installation
@@ -36,7 +36,7 @@ React Native starts:
   [EDOT iOS documentation](https://www.elastic.co/docs/reference/opentelemetry/edot-sdks/ios)
   for what each one records.
 
-Widget tap events are opt-in. To record them, add
+Widget tap and scroll events are opt-in. To record them, add
 `'@elastic/otel-react-native/babel-plugin'` to the existing `plugins` array in
 `babel.config.js`, creating the array if needed. Keep all existing presets and
 plugins: bare React Native projects keep `module:@react-native/babel-preset`,
@@ -55,6 +55,8 @@ With no options, each tap that runs the `onPress` handler of a `Button`,
 `Pressable`, `TouchableOpacity`, `TouchableHighlight`,
 `TouchableWithoutFeedback`, or `TouchableNativeFeedback` imported from
 `react-native` records an `app.widget.click` event, on Android and on iOS.
+Scroll gestures on `ScrollView`, `FlatList`, `SectionList`, and
+`VirtualizedList` from `react-native` record an `app.widget.scroll` event.
 After you add the plugin or change its options, rebuild the bundle with the
 Metro cache reset, for example `npx react-native start --reset-cache` or
 `npx expo start --clear`.
@@ -86,6 +88,10 @@ plugins: [['@elastic/otel-react-native/babel-plugin', {
         instrumentations: { click: { handlers: ['onPress'] } } },
       { name: 'TouchableNativeFeedback', from: 'react-native',
         instrumentations: { click: { handlers: ['onPress'] } } },
+      { name: 'ScrollView', from: 'react-native', instrumentations: { scroll: {} } },
+      { name: 'FlatList', from: 'react-native', instrumentations: { scroll: {} } },
+      { name: 'SectionList', from: 'react-native', instrumentations: { scroll: {} } },
+      { name: 'VirtualizedList', from: 'react-native', instrumentations: { scroll: {} } },
     ],
   },
 }]]
@@ -218,7 +224,7 @@ long-press event.
 
 `enabled: false` on an entry turns that component off, for example
 `{ name: 'Pressable', from: 'react-native', enabled: false }`.
-`interactions.enabled: false` turns tap events off.
+`interactions.enabled: false` turns tap and scroll events off.
 
 An element is skipped when a spread attribute, such as `{...props}`, follows
 its handler or an id prop such as `testID`, because the spread can replace
@@ -261,12 +267,59 @@ To record a tap that the plugin does not instrument, call
 events are absent, set `debug: true`, confirm that native bootstrap completed,
 and rebuild the bundle with the Metro cache reset.
 
+### Widget scroll events
+
+The Babel plugin records one `app.widget.scroll` event when the user lifts
+their finger at the end of a drag on `ScrollView`, `FlatList`, `SectionList`,
+or `VirtualizedList` imported from `react-native`. No handler or per-component
+setup is required. If the app supplies an `onScrollEndDrag` function, it runs
+once with its arguments, receiver, return value, and errors preserved.
+A non-function handler value is left unchanged.
+
+The event uses the same [widget id and name sources](#widget-id-and-name) as
+tap events. It has the required `app.widget.id`, optional `app.widget.name`,
+and `otel.event.name=app.widget.scroll`, with instrumentation scope
+`@elastic/otel-react-native.interactions`, no log body, and no span context.
+There are no direction, duration, or depth attributes.
+
+Programmatic scrolling that only fires `onScroll`, such as a non-animated
+`scrollTo`, records no scroll event. Per-frame `onScroll` and momentum
+callbacks record no events. The plugin does not wrap or replace those
+handlers, and it adds no fling event or debounce timer.
+
+Scroll events follow `interactions.enabled` and each component entry's
+`enabled` setting. For a custom component that forwards `onScrollEndDrag`,
+use `instrumentations: { scroll: {} }`. The handler name is fixed.
+The [component matching rules](#track-your-own-and-third-party-components)
+also apply to scroll components. When a spread could supply the drag handler
+or replace its handler or widget id, the plugin skips the element.
+Use [`debug: true`](#report-skipped-elements) to report skipped elements.
+
+`app.widget.scroll` is a Development convention from the
+[OpenTelemetry Android federated model](https://github.com/open-telemetry/opentelemetry-android/blob/main/semconv/model/android/events.yaml)
+and can change in a future OpenTelemetry release. That model requires
+`hw.pointer.distance.x` and `hw.pointer.distance.y`. EDOT React Native
+deliberately omits them because React Native scroll events expose content
+offsets, not pointer travel distances.
+
+For a gesture outside the plugin's coverage, import `recordWidgetScroll`
+from `@elastic/otel-react-native` and call it with a widget id, an optional
+widget name, and a Unix timestamp in milliseconds:
+
+```ts
+await recordWidgetScroll({
+  widgetId: 'catalog.items',
+  widgetName: 'Catalog',
+  timestamp: Date.now(),
+});
+```
+
 ## Understanding automatic-instrumentation scope
 
 Automatic HTTP spans cover the requests that pass through OkHttp on Android
 and URLSession on iOS. Validate representative application requests on both
 platforms.
 
-EDOT React Native does not add automatic React Navigation, Redux, gesture,
+EDOT React Native does not add automatic React Navigation, Redux, other gesture,
 screen-coordinate, or JavaScript exception instrumentation, and does not process
 source maps.

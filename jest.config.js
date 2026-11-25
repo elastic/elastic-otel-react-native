@@ -17,9 +17,37 @@
  */
 
 module.exports = {
-  testEnvironment: 'node',
-  modulePathIgnorePatterns: ['<rootDir>/build/'],
-  transform: {
-    '^.+\\.ts$': '<rootDir>/scripts/jest-typescript-transformer.cjs',
-  },
+  projects: [
+    {
+      displayName: 'unit',
+      testEnvironment: 'node',
+      modulePathIgnorePatterns: ['<rootDir>/build/'],
+      testPathIgnorePatterns: ['/node_modules/', '/scroll-components.test.js$'],
+      transform: {
+        '^.+\\.ts$': '<rootDir>/scripts/jest-typescript-transformer.cjs',
+      },
+    },
+    {
+      displayName: 'components',
+      preset: '@react-native/jest-preset',
+      testMatch: ['<rootDir>/tests/scroll-components.test.js'],
+      modulePathIgnorePatterns: ['<rootDir>/build/'],
+      moduleNameMapper: {
+        '^@elastic/otel-react-native$': '<rootDir>/src/index.ts',
+      },
+      transform: {
+        '^.+\\.(js|ts|tsx)$': [
+          // Use the preset's transformer with its compatible Babel peer.
+          require.resolve('babel-jest', {
+            paths: [require.resolve('@react-native/jest-preset')],
+          }),
+          {
+            babelrc: false,
+            configFile: false,
+            presets: ['@react-native/babel-preset'],
+          },
+        ],
+      },
+    },
+  ],
 };
