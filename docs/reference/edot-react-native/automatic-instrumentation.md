@@ -280,12 +280,8 @@ The event uses the same [widget id and name sources](#widget-id-and-name) as
 tap events. It has the required `app.widget.id`, optional `app.widget.name`,
 and `otel.event.name=app.widget.scroll`, with instrumentation scope
 `@elastic/otel-react-native.interactions`, no log body, and no span context.
-There are no direction, duration, or depth attributes.
 
-Programmatic scrolling that only fires `onScroll`, such as a non-animated
-`scrollTo`, records no scroll event. Per-frame `onScroll` and momentum
-callbacks record no events. The plugin does not wrap or replace those
-handlers, and it adds no fling event or debounce timer.
+A scroll event is recorded when a drag ends, from `onScrollEndDrag`.
 
 Scroll events follow `interactions.enabled` and each component entry's
 `enabled` setting. For a custom component that forwards `onScrollEndDrag`,
@@ -297,10 +293,7 @@ Use [`debug: true`](#report-skipped-elements) to report skipped elements.
 
 `app.widget.scroll` is a Development convention from the
 [OpenTelemetry Android federated model](https://github.com/open-telemetry/opentelemetry-android/blob/main/semconv/model/android/events.yaml)
-and can change in a future OpenTelemetry release. That model requires
-`hw.pointer.distance.x` and `hw.pointer.distance.y`. EDOT React Native
-deliberately omits them because React Native scroll events expose content
-offsets, not pointer travel distances.
+and can change in a future OpenTelemetry release.
 
 For a gesture outside the plugin's coverage, import `recordWidgetScroll`
 from `@elastic/otel-react-native` and call it with a widget id, an optional
