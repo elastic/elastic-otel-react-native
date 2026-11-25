@@ -74,6 +74,7 @@ function classify(path) {
       '.prettierignore',
     ].includes(name) ||
     path === '.github/CODEOWNERS' ||
+    path === '.github/dependabot.yml' ||
     /^\.github\/workflows\/.+\.ya?ml$/.test(path) ||
     /^docs\/.*\.yml$/.test(path) ||
     /\.(json|md|env|properties|storyboard|plist|xcprivacy|pbxproj|xcscheme|png|jar)$/.test(

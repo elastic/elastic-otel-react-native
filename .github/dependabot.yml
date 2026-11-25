@@ -1,0 +1,18 @@
+---
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "sunday"
+      time: "22:00"
+    labels:
+      - "dependencies"
+      - "oblt-aw/ai/merge-ready"
+    exclude-paths:
+      - ".github/workflows/trigger-*-aw-*.yml"
+    groups:
+      github-actions:
+        patterns:
+          - "*"
