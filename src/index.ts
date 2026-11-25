@@ -32,6 +32,13 @@ type NativeBridge = {
     widgetName: string | null,
     timestamp: number,
   ): Promise<void>;
+  /** Blocking and synchronous on purpose; returns whether it recorded. */
+  recordJavaScriptCrash(
+    type: string,
+    message: string,
+    stacktrace: string,
+    timestamp: number,
+  ): boolean;
 };
 
 function bridge(): NativeBridge {
@@ -53,6 +60,14 @@ export type OtelStatus = {
   ready: boolean;
 };
 
+export type InitializeOptions = {
+  /**
+   * Record uncaught fatal JavaScript exceptions as `app.crash` records.
+   * Defaults to `true`.
+   */
+  captureErrors?: boolean;
+};
+
 export type StartSpanOptions = {
   /** An active bridge handle, not an OpenTelemetry trace ID or span ID. */
   parentSpanHandle?: string;
@@ -70,6 +85,15 @@ export type RecordWidgetClickOptions = {
   timestamp: number;
 };
 
+function isPlainObject(value: unknown): value is object {
+  return (
+    value !== null &&
+    typeof value === 'object' &&
+    !Array.isArray(value) &&
+    [Object.prototype, null].includes(Object.getPrototypeOf(value))
+  );
+}
+
 function optionalHandle(
   options: unknown,
   key: 'parentSpanHandle' | 'spanHandle',
@@ -77,12 +101,7 @@ function optionalHandle(
   if (options === undefined) {
     return null;
   }
-  if (
-    options === null ||
-    typeof options !== 'object' ||
-    Array.isArray(options) ||
-    ![Object.prototype, null].includes(Object.getPrototypeOf(options))
-  ) {
+  if (!isPlainObject(options)) {
     throw new TypeError(`Options must be an object containing only ${key}.`);
   }
 
@@ -99,6 +118,91 @@ function optionalHandle(
     throw new TypeError(`${key} must be a non-blank opaque span handle.`);
   }
   return handle;
+}
+
+type GlobalErrorHandler = (error: unknown, isFatal?: boolean) => void;
+
+// React Native defines this global in every supported version; the type is
+// declared here so the SDK does not depend on a version's own declaration.
+declare const ErrorUtils: {
+  getGlobalHandler(): GlobalErrorHandler;
+  setGlobalHandler(handler: GlobalErrorHandler): void;
+};
+
+let errorCaptureInstalled = false;
+
+function initializeOptions(options: unknown): { captureErrors: boolean } {
+  if (options === undefined) {
+    return { captureErrors: true };
+  }
+  if (!isPlainObject(options)) {
+    throw new TypeError('Initialize options must be a plain object.');
+  }
+  if (Object.keys(options).some((key) => key !== 'captureErrors')) {
+    throw new TypeError('Initialize options may contain only captureErrors.');
+  }
+
+  const { captureErrors } = options as Record<string, unknown>;
+  if (captureErrors !== undefined && typeof captureErrors !== 'boolean') {
+    throw new TypeError('captureErrors must be a boolean when provided.');
+  }
+  return { captureErrors: captureErrors ?? true };
+}
+
+function crashDetails(error: unknown): {
+  type: string;
+  message: string;
+  stacktrace: string;
+} {
+  if (error instanceof Error) {
+    return {
+      type:
+        typeof error.name === 'string' && error.name.trim() !== ''
+          ? error.name
+          : 'Error',
+      message: String(error.message),
+      stacktrace: typeof error.stack === 'string' ? error.stack : '',
+    };
+  }
+  return { type: 'Error', message: String(error), stacktrace: '' };
+}
+
+function installErrorCapture(): void {
+  if (errorCaptureInstalled) {
+    return;
+  }
+
+  const previous = ErrorUtils.getGlobalHandler();
+  ErrorUtils.setGlobalHandler((error, isFatal) => {
+    if (isFatal === true) {
+      try {
+        const { type, message, stacktrace } = crashDetails(error);
+        bridge().recordJavaScriptCrash(type, message, stacktrace, Date.now());
+      } catch {
+        // Recording must never change what happens to the app.
+      }
+    }
+    previous(error, isFatal);
+  });
+  errorCaptureInstalled = true;
+}
+
+/**
+ * Switches on the JavaScript-side features once native bootstrap has run. It
+ * never initializes the native SDK. Call it in the app entry file, before
+ * `AppRegistry.registerComponent`.
+ */
+export async function initialize(options?: InitializeOptions): Promise<void> {
+  const { captureErrors } = initializeOptions(options);
+  const status = await getStatus();
+  if (!status.ready) {
+    throw new Error(
+      '@elastic/otel-react-native native bootstrap has not run. Initialize the native SDK at app start.',
+    );
+  }
+  if (captureErrors) {
+    installErrorCapture();
+  }
 }
 
 export function getStatus(): Promise<OtelStatus> {
@@ -219,12 +323,7 @@ function widgetClickOptions(options: unknown): {
   widgetName: string | null;
   timestamp: number;
 } {
-  if (
-    options === null ||
-    typeof options !== 'object' ||
-    Array.isArray(options) ||
-    ![Object.prototype, null].includes(Object.getPrototypeOf(options))
-  ) {
+  if (!isPlainObject(options)) {
     throw new TypeError('Widget click options must be a plain object.');
   }
 

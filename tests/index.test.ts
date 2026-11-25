@@ -20,6 +20,7 @@ const mockNativeBridge = {
   emitLog: jest.fn(),
   endSpan: jest.fn(),
   getStatus: jest.fn(),
+  recordJavaScriptCrash: jest.fn(),
   recordWidgetClick: jest.fn(),
   startSpan: jest.fn(),
 };
@@ -382,4 +383,183 @@ test('bridge-unavailable errors are platform-neutral', () => {
   } finally {
     NativeModules.ElasticOtelReactNative = saved;
   }
+});
+
+describe('initialize', () => {
+  type Handler = (error: unknown, isFatal?: boolean) => void;
+  const calls: string[] = [];
+  let previousHandler: jest.Mock;
+  let installed: Handler | undefined;
+  let setGlobalHandler: jest.Mock;
+
+  // A fresh module per test, because installing the hook is once per module.
+  function freshSdk(): { initialize: typeof import('../src').initialize } {
+    let sdk: typeof import('../src') | undefined;
+    jest.isolateModules(() => {
+      sdk = require('../src');
+    });
+    return sdk as typeof import('../src');
+  }
+
+  beforeEach(() => {
+    calls.length = 0;
+    installed = undefined;
+    previousHandler = jest.fn(() => {
+      calls.push('previous');
+    });
+    setGlobalHandler = jest.fn((handler: Handler) => {
+      installed = handler;
+    });
+    (globalThis as Record<string, unknown>).ErrorUtils = {
+      getGlobalHandler: () => previousHandler,
+      setGlobalHandler,
+    };
+    mockNativeBridge.getStatus.mockResolvedValue({ ready: true });
+    mockNativeBridge.recordJavaScriptCrash.mockImplementation(() => {
+      calls.push('bridge');
+      return true;
+    });
+  });
+
+  afterEach(() => {
+    delete (globalThis as Record<string, unknown>).ErrorUtils;
+  });
+
+  test('a fatal error is recorded once and then reaches the previous handler', async () => {
+    await freshSdk().initialize();
+    const error = new TypeError('boom');
+    const before = Date.now();
+
+    installed!(error, true);
+
+    expect(mockNativeBridge.recordJavaScriptCrash).toHaveBeenCalledTimes(1);
+    expect(mockNativeBridge.recordJavaScriptCrash).toHaveBeenCalledWith(
+      'TypeError',
+      'boom',
+      error.stack,
+      expect.any(Number),
+    );
+    expect(
+      mockNativeBridge.recordJavaScriptCrash.mock.calls[0][3],
+    ).toBeGreaterThanOrEqual(before);
+    expect(previousHandler).toHaveBeenCalledTimes(1);
+    expect(previousHandler).toHaveBeenCalledWith(error, true);
+    expect(calls).toEqual(['bridge', 'previous']);
+  });
+
+  test('the previous handler runs when the bridge throws or returns false', async () => {
+    await freshSdk().initialize();
+    mockNativeBridge.recordJavaScriptCrash.mockImplementationOnce(() => {
+      throw new Error('native failed');
+    });
+    installed!(new Error('first'), true);
+    mockNativeBridge.recordJavaScriptCrash.mockReturnValueOnce(false);
+    installed!(new Error('second'), true);
+
+    expect(previousHandler).toHaveBeenCalledTimes(2);
+  });
+
+  test('a non-fatal error only reaches the previous handler', async () => {
+    await freshSdk().initialize();
+
+    installed!(new Error('soft'), false);
+    installed!(new Error('unflagged'));
+
+    expect(mockNativeBridge.recordJavaScriptCrash).not.toHaveBeenCalled();
+    expect(previousHandler).toHaveBeenCalledTimes(2);
+  });
+
+  test('captureErrors false and a second initialize install nothing new', async () => {
+    const off = freshSdk();
+    await off.initialize({ captureErrors: false });
+    expect(setGlobalHandler).not.toHaveBeenCalled();
+
+    const on = freshSdk();
+    await on.initialize({ captureErrors: true });
+    await on.initialize();
+    expect(setGlobalHandler).toHaveBeenCalledTimes(1);
+  });
+
+  test('invalid options are rejected before any native call', async () => {
+    const sdk = freshSdk();
+
+    for (const options of [
+      null,
+      'yes',
+      [],
+      { captureErrors: 'yes' },
+      { captureErrors: true, other: 1 },
+    ]) {
+      await expect(sdk.initialize(options as never)).rejects.toThrow(TypeError);
+    }
+    expect(mockNativeBridge.getStatus).not.toHaveBeenCalled();
+  });
+
+  test('an unready native side rejects and installs nothing', async () => {
+    mockNativeBridge.getStatus.mockResolvedValue({ ready: false });
+
+    await expect(freshSdk().initialize()).rejects.toThrow(
+      'native bootstrap has not run',
+    );
+    expect(setGlobalHandler).not.toHaveBeenCalled();
+  });
+
+  test('an unavailable bridge rejects with the platform-neutral error', async () => {
+    const saved = NativeModules.ElasticOtelReactNative;
+    delete NativeModules.ElasticOtelReactNative;
+    try {
+      await expect(freshSdk().initialize()).rejects.toThrow(
+        'Native autolinking must be enabled and the app rebuilt.',
+      );
+    } finally {
+      NativeModules.ElasticOtelReactNative = saved;
+    }
+  });
+
+  test('thrown values that are not errors convert without throwing', async () => {
+    await freshSdk().initialize();
+    const hostile = {
+      toString() {
+        throw new Error('no string form');
+      },
+    };
+
+    for (const value of ['plain text', null, undefined, 42, hostile]) {
+      installed!(value, true);
+    }
+
+    expect(mockNativeBridge.recordJavaScriptCrash).toHaveBeenNthCalledWith(
+      1,
+      'Error',
+      'plain text',
+      '',
+      expect.any(Number),
+    );
+    expect(mockNativeBridge.recordJavaScriptCrash).toHaveBeenNthCalledWith(
+      2,
+      'Error',
+      'null',
+      '',
+      expect.any(Number),
+    );
+    // The hostile value records nothing, and every value still delegates.
+    expect(mockNativeBridge.recordJavaScriptCrash).toHaveBeenCalledTimes(4);
+    expect(previousHandler).toHaveBeenCalledTimes(5);
+  });
+
+  test('an error without a usable name or stack still converts', async () => {
+    await freshSdk().initialize();
+    const error = new Error('odd');
+    error.name = ' ';
+    error.stack = undefined;
+
+    installed!(error, true);
+
+    expect(mockNativeBridge.recordJavaScriptCrash).toHaveBeenCalledWith(
+      'Error',
+      'odd',
+      '',
+      expect.any(Number),
+    );
+  });
 });
