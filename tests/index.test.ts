@@ -542,9 +542,45 @@ describe('initialize', () => {
       '',
       expect.any(Number),
     );
-    // The hostile value records nothing, and every value still delegates.
-    expect(mockNativeBridge.recordJavaScriptCrash).toHaveBeenCalledTimes(4);
+    // The hostile value still records, with an empty message.
+    expect(mockNativeBridge.recordJavaScriptCrash).toHaveBeenNthCalledWith(
+      5,
+      'Error',
+      '',
+      '',
+      expect.any(Number),
+    );
+    expect(mockNativeBridge.recordJavaScriptCrash).toHaveBeenCalledTimes(5);
     expect(previousHandler).toHaveBeenCalledTimes(5);
+  });
+
+  test('an object without a prototype and an error with a throwing stack still record', async () => {
+    await freshSdk().initialize();
+    const stackless = new Error('stackless');
+    Object.defineProperty(stackless, 'stack', {
+      get() {
+        throw new Error('no stack');
+      },
+    });
+
+    installed!(Object.create(null), true);
+    installed!(stackless, true);
+
+    expect(mockNativeBridge.recordJavaScriptCrash).toHaveBeenNthCalledWith(
+      1,
+      'Error',
+      '',
+      '',
+      expect.any(Number),
+    );
+    expect(mockNativeBridge.recordJavaScriptCrash).toHaveBeenNthCalledWith(
+      2,
+      'Error',
+      'stackless',
+      '',
+      expect.any(Number),
+    );
+    expect(previousHandler).toHaveBeenCalledTimes(2);
   });
 
   test('an error without a usable name or stack still converts', async () => {

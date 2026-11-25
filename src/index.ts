@@ -149,22 +149,36 @@ function initializeOptions(options: unknown): { captureErrors: boolean } {
   return { captureErrors: captureErrors ?? true };
 }
 
+function attempt<T>(read: () => T, fallback: T): T {
+  try {
+    return read();
+  } catch {
+    return fallback;
+  }
+}
+
+// Each field falls back on its own, so an error whose properties or string
+// form throw still produces a record.
 function crashDetails(error: unknown): {
   type: string;
   message: string;
   stacktrace: string;
 } {
-  if (error instanceof Error) {
-    return {
-      type:
-        typeof error.name === 'string' && error.name.trim() !== ''
+  const isError = error instanceof Error;
+  return {
+    type: attempt(
+      () =>
+        isError && typeof error.name === 'string' && error.name.trim() !== ''
           ? error.name
           : 'Error',
-      message: String(error.message),
-      stacktrace: typeof error.stack === 'string' ? error.stack : '',
-    };
-  }
-  return { type: 'Error', message: String(error), stacktrace: '' };
+      'Error',
+    ),
+    message: attempt(() => String(isError ? error.message : error), ''),
+    stacktrace: attempt(
+      () => (isError && typeof error.stack === 'string' ? error.stack : ''),
+      '',
+    ),
+  };
 }
 
 function installErrorCapture(): void {

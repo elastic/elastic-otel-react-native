@@ -265,8 +265,9 @@ AppRegistry.registerComponent('MyApp', () => App);
    promise rejects when native bootstrap has not run or the package is not
    linked.
 
-Capture is on by default. To turn it off, call
-`initialize({ captureErrors: false })`.
+Capture is on by default. To keep it off, call
+`initialize({ captureErrors: false })`, which installs no error capture. A
+capture that an earlier `initialize()` call installed stays active.
 
 `initialize` does not initialize the native SDK and takes no endpoint or
 credential options; those belong to [native bootstrap](#bootstrap-before-react-native).

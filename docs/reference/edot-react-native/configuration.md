@@ -255,7 +255,8 @@ the app starts.
 
 Uncaught fatal JavaScript exceptions are recorded by `initialize()`, which is
 on by default once your app calls it. `initialize({ captureErrors: false })`
-turns JavaScript error capture off, and it has no other option. See
+installs no JavaScript error capture, and it has no other option. Capture that
+an earlier call installed stays active. See
 [Capture JavaScript errors](getting-started.md#capture-javascript-errors) for
 where to call it and what it captures.
 
