@@ -16,8 +16,6 @@
 
 import OpenTelemetryApi
 
-import OpenTelemetryApi
-
 let crashInstrumentationScope = "@elastic/otel-react-native"
 let crashEventName = "app.crash"
 let javaScriptExceptionSource = "javascript"
