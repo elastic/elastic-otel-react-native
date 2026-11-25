@@ -58,7 +58,6 @@ function classify(path) {
   if (
     /\.(sh|podspec)$/.test(path) ||
     name === 'Podfile' ||
-    /^\.github\/workflows\/[^/]+\.yml$/.test(path) ||
     /^\.buildkite\/[^/]+\.yml$/.test(path) ||
     /^\.ci\/updatecli\/[^/]+\.yml$/.test(path) ||
     path === 'catalog-info.yaml'
@@ -75,6 +74,7 @@ function classify(path) {
       '.prettierignore',
     ].includes(name) ||
     path === '.github/CODEOWNERS' ||
+    /^\.github\/workflows\/.+\.ya?ml$/.test(path) ||
     /^docs\/.*\.yml$/.test(path) ||
     /\.(json|md|env|properties|storyboard|plist|xcprivacy|pbxproj|xcscheme|png|jar)$/.test(
       path,
