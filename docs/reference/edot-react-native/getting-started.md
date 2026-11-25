@@ -270,9 +270,9 @@ Capture is on by default. To turn it off, call
 
 `initialize` does not initialize the native SDK and takes no endpoint or
 credential options; those belong to [native bootstrap](#bootstrap-before-react-native).
-The capture only records: it then calls the error handler that was installed
-before it, so your app terminates exactly as it does without EDOT React
-Native.
+The capture records the error and then always calls the error handler that was
+installed before it. It neither swallows nor delays the error, so whether your
+app terminates does not change.
 
 Capture has these limits:
 
@@ -280,6 +280,8 @@ Capture has these limits:
   promise rejections are not captured.
 - It does not capture errors thrown before the `initialize` promise resolves.
 - The native crash record for the same crash can also reach Elastic.
+- On iOS, the record can be lost when the app terminates before the log
+  pipeline exports it.
 
 ## Start sending telemetry
 
