@@ -261,28 +261,17 @@ initialize().catch((error) => console.warn(error)); // <1>
 AppRegistry.registerComponent('MyApp', () => App);
 ```
 
-1. Switches on JavaScript error capture once native bootstrap has run. The
-   promise rejects when native bootstrap has not run or the package is not
-   linked.
+1. Starts capturing once native bootstrap has run. The promise rejects when
+   native bootstrap has not run or the package is not linked.
 
-Capture is on by default. To keep it off, call
-`initialize({ captureErrors: false })`, which installs no error capture. A
-capture that an earlier `initialize()` call installed stays active.
+Capture is on by default. To turn it off, call
+`initialize({ captureErrors: false })`.
 
-`initialize` does not initialize the native SDK and takes no endpoint or
-credential options; those belong to [native bootstrap](#bootstrap-before-react-native).
-The capture records the error and then always calls the error handler that was
-installed before it. It neither swallows nor delays the error, so whether your
-app terminates does not change.
+The capture records the error and then calls the error handler that was
+installed before it, so whether your app terminates does not change.
 
-Capture has these limits:
-
-- It records only fatal uncaught exceptions. Non-fatal errors and unhandled
-  promise rejections are not captured.
-- It does not capture errors thrown before the `initialize` promise resolves.
-- The native crash record for the same crash can also reach Elastic.
-- On iOS, the record can be lost when the app terminates before the log
-  pipeline exports it.
+Errors thrown before the promise returned by `initialize()` resolves are not
+captured.
 
 ## Start sending telemetry
 
