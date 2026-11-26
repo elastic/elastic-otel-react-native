@@ -63,26 +63,6 @@ jobs:
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
-      - name: Install Android SDK packages
-        shell: bash
-        run: |
-          df -h /
-          # The emulator action accepts the licenses before it installs; do the same here.
-          yes | sdkmanager --licenses > /dev/null || true
-          for attempt in 1 2 3; do
-            if sdkmanager --install \
-              'build-tools;37.0.0' \
-              'platform-tools' \
-              'platforms;android-26' \
-              'emulator' \
-              'system-images;android-26;default;x86_64'; then
-              break
-            fi
-            if [ "$attempt" -eq 3 ]; then
-              exit 1
-            fi
-            sleep 2
-          done
       # API 26 is the Expo fixture's minSdkVersion.
       - name: npm run test:expo-launch:android
         uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
