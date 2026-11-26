@@ -253,8 +253,7 @@ the logs before the app terminates. EDOT iOS enables native crash reporting
 by default, stores a crash report on the device, and exports it the next time
 the app starts.
 
-`initialize()` records uncaught fatal JavaScript exceptions, and captures by
-default. `initialize({ captureErrors: false })` turns capture off. See
+`initialize()` records uncaught fatal JavaScript exceptions by default. `initialize({ captureErrors: false })` turns capture off. See
 [Capture JavaScript errors](getting-started.md#capture-javascript-errors) for
 where to call it.
 

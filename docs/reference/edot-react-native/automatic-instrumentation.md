@@ -270,6 +270,5 @@ Automatic HTTP spans cover the requests that pass through OkHttp on Android
 and URLSession on iOS. Validate representative application requests on both
 platforms.
 
-EDOT React Native does not add automatic React Navigation, Redux, gesture,
-screen-coordinate, or JavaScript exception instrumentation, and does not process
-source maps.
+EDOT React Native does not add automatic React Navigation, Redux, gesture, or
+screen-coordinate instrumentation, and does not process source maps.
