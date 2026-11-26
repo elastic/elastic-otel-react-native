@@ -164,18 +164,21 @@ function crashDetails(error: unknown): {
   message: string;
   stacktrace: string;
 } {
-  const isError = error instanceof Error;
+  const caught = attempt(
+    () => (error instanceof Error ? error : undefined),
+    undefined,
+  );
   return {
     type: attempt(
       () =>
-        isError && typeof error.name === 'string' && error.name.trim() !== ''
-          ? error.name
+        caught && typeof caught.name === 'string' && caught.name.trim() !== ''
+          ? caught.name
           : 'Error',
       'Error',
     ),
-    message: attempt(() => String(isError ? error.message : error), ''),
+    message: attempt(() => String(caught ? caught.message : error), ''),
     stacktrace: attempt(
-      () => (isError && typeof error.stack === 'string' ? error.stack : ''),
+      () => (caught && typeof caught.stack === 'string' ? caught.stack : ''),
       '',
     ),
   };

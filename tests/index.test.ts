@@ -583,6 +583,46 @@ describe('initialize', () => {
     expect(previousHandler).toHaveBeenCalledTimes(2);
   });
 
+  test('a Proxy whose prototype lookup throws, and a revoked Proxy, still record', async () => {
+    await freshSdk().initialize();
+    const throwingTrap = new Proxy(
+      {},
+      {
+        getPrototypeOf() {
+          throw new Error('no prototype');
+        },
+      },
+    );
+    const { proxy: revoked, revoke } = Proxy.revocable({}, {});
+    revoke();
+
+    installed!(throwingTrap, true);
+    installed!(revoked, true);
+
+    expect(mockNativeBridge.recordJavaScriptCrash).toHaveBeenCalledTimes(2);
+    // The trap only affects classification, so the string form still works.
+    expect(mockNativeBridge.recordJavaScriptCrash).toHaveBeenNthCalledWith(
+      1,
+      'Error',
+      '[object Object]',
+      '',
+      expect.any(Number),
+    );
+    expect(mockNativeBridge.recordJavaScriptCrash).toHaveBeenNthCalledWith(
+      2,
+      'Error',
+      '',
+      '',
+      expect.any(Number),
+    );
+    expect(previousHandler).toHaveBeenCalledTimes(2);
+    // Compare by identity: deep equality would call the throwing trap.
+    expect(previousHandler.mock.calls[0][0]).toBe(throwingTrap);
+    expect(previousHandler.mock.calls[0][1]).toBe(true);
+    expect(previousHandler.mock.calls[1][0]).toBe(revoked);
+    expect(previousHandler.mock.calls[1][1]).toBe(true);
+  });
+
   test('an error without a usable name or stack still converts', async () => {
     await freshSdk().initialize();
     const error = new Error('odd');
