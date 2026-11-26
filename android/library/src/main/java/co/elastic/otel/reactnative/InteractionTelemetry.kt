@@ -26,7 +26,7 @@ import java.util.concurrent.TimeUnit
 internal const val INTERACTION_INSTRUMENTATION_SCOPE =
     "@elastic/otel-react-native.interactions"
 internal const val WIDGET_CLICK_EVENT_NAME = "app.widget.click"
-internal const val WIDGET_SCROLL_EVENT_NAME = "app.widget.scroll"
+internal const val WIDGET_SCROLL_EVENT_NAME = "elastic.app.widget.scroll"
 
 internal class InteractionTelemetry(
     private val openTelemetry: () -> OpenTelemetry,

@@ -208,14 +208,14 @@ final class TelemetryTests: XCTestCase {
       record.instrumentationScopeInfo.name,
       interactionInstrumentationScope
     )
-    XCTAssertEqual(record.eventName, "app.widget.scroll")
+    XCTAssertEqual(record.eventName, "elastic.app.widget.scroll")
     XCTAssertEqual(
       Set(record.attributes.keys),
       ["otel.event.name", "app.widget.id", "app.widget.name"]
     )
     XCTAssertEqual(
       record.attributes["otel.event.name"],
-      .string("app.widget.scroll")
+      .string("elastic.app.widget.scroll")
     )
     XCTAssertEqual(
       record.attributes["app.widget.id"],

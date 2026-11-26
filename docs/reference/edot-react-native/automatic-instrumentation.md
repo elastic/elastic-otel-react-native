@@ -56,7 +56,7 @@ With no options, each tap that runs the `onPress` handler of a `Button`,
 `TouchableWithoutFeedback`, or `TouchableNativeFeedback` imported from
 `react-native` records an `app.widget.click` event, on Android and on iOS.
 Scroll gestures on `ScrollView`, `FlatList`, `SectionList`, and
-`VirtualizedList` from `react-native` record an `app.widget.scroll` event.
+`VirtualizedList` from `react-native` record an `elastic.app.widget.scroll` event.
 After you add the plugin or change its options, rebuild the bundle with the
 Metro cache reset, for example `npx react-native start --reset-cache` or
 `npx expo start --clear`.
@@ -275,7 +275,7 @@ and rebuild the bundle with the Metro cache reset.
 edot_react_native: preview 0.3.0
 ```
 
-The Babel plugin records one `app.widget.scroll` event when the user lifts
+The Babel plugin records one `elastic.app.widget.scroll` event when the user lifts
 their finger at the end of a drag on `ScrollView`, `FlatList`, `SectionList`,
 or `VirtualizedList` imported from `react-native`. No handler or per-component
 setup is required. If the app supplies an `onScrollEndDrag` function, it runs
@@ -284,7 +284,7 @@ A non-function handler value is left unchanged.
 
 The event uses the same [widget id and name sources](#widget-id-and-name) as
 tap events. It has the required `app.widget.id`, optional `app.widget.name`,
-and `otel.event.name=app.widget.scroll`, with instrumentation scope
+and `otel.event.name=elastic.app.widget.scroll`, with instrumentation scope
 `@elastic/otel-react-native.interactions`, no log body, and no span context.
 
 A scroll event is recorded when a drag ends, from `onScrollEndDrag`.
@@ -297,10 +297,6 @@ The [component matching rules](#track-your-own-and-third-party-components)
 also apply to scroll components. When a spread could supply the drag handler
 or replace its handler or widget id, the plugin skips the element.
 Use [`debug: true`](#report-skipped-elements) to report skipped elements.
-
-`app.widget.scroll` is a Development convention from the
-[OpenTelemetry Android federated model](https://github.com/open-telemetry/opentelemetry-android/blob/main/semconv/model/android/events.yaml)
-and can change in a future OpenTelemetry release.
 
 For a gesture outside the plugin's coverage, import `recordWidgetScroll`
 from `@elastic/otel-react-native` and call it with a widget id, an optional

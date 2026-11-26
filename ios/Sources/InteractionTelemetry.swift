@@ -19,7 +19,7 @@ import OpenTelemetryApi
 let interactionInstrumentationScope =
   "@elastic/otel-react-native.interactions"
 let widgetClickEventName = "app.widget.click"
-let widgetScrollEventName = "app.widget.scroll"
+let widgetScrollEventName = "elastic.app.widget.scroll"
 
 final class InteractionTelemetry {
   private let openTelemetry: () throws -> OpenTelemetry

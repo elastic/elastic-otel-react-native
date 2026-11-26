@@ -94,7 +94,7 @@ touchables, and on the app and library components you list, as
 `app.widget.click` events. Each event identifies the widget from its props or
 visible text. See
 [Widget tap events](automatic-instrumentation.md#widget-tap-events).
-The plugin also records one `app.widget.scroll` event at the end of a drag
+The plugin also records one `elastic.app.widget.scroll` event at the end of a drag
 on React Native's ScrollView-family components. See
 [Widget scroll events](automatic-instrumentation.md#widget-scroll-events).
 

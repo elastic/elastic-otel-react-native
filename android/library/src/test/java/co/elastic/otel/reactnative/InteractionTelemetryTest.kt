@@ -86,7 +86,7 @@ class InteractionTelemetryTest {
         telemetry.recordWidgetScroll("forecast.list", "Forecast", 1234.0)
 
         val event = logs.finishedLogRecordItems.single()
-        assertEquals("app.widget.scroll", event.eventName)
+        assertEquals("elastic.app.widget.scroll", event.eventName)
         assertEquals(1_234_000_000, event.timestampEpochNanos)
         assertEquals(
             INTERACTION_INSTRUMENTATION_SCOPE,
@@ -97,7 +97,7 @@ class InteractionTelemetryTest {
             event.attributes.get(AttributeKey.stringKey("app.widget.id")),
         )
         assertEquals(
-            "app.widget.scroll",
+            "elastic.app.widget.scroll",
             event.attributes.get(AttributeKey.stringKey("otel.event.name")),
         )
         assertEquals(

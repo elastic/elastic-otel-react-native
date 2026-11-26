@@ -115,7 +115,7 @@ declare namespace elasticOtelReactNativeBabelPlugin {
   interface AvailableInstrumentations {
     /** Record an `app.widget.click` event when a handler runs. */
     click?: ClickInstrumentation;
-    /** Record an `app.widget.scroll` event on `onScrollEndDrag`. */
+    /** Record an `elastic.app.widget.scroll` event on `onScrollEndDrag`. */
     scroll?: ScrollInstrumentation;
   }
 
