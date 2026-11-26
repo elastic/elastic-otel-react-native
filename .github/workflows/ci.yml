@@ -68,11 +68,11 @@ jobs:
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
-      # API 26 is the Expo fixture's minSdkVersion (expo-fixture/app.json).
+      # The API level matches the Expo fixture's targetSdkVersion.
       - name: npm run test:expo-launch:android
         uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
         with:
-          api-level: 26
+          api-level: 36
           arch: x86_64
           script: npm run test:expo-launch:android
 
