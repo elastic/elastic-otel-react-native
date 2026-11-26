@@ -109,9 +109,9 @@ spans on both platforms.
 
 EDOT Android and EDOT iOS capture native crashes. After your app calls
 `initialize()`, EDOT React Native also captures uncaught fatal JavaScript
-exceptions, as described in
-[Capture JavaScript errors](getting-started.md#capture-javascript-errors). See
-[Crash reporting](configuration.md#crash-reporting) for configuration.
+exceptions. See
+[Capture JavaScript errors](configuration.md#capture-javascript-errors) for
+details.
 
 ### Widget tap events
 
@@ -269,6 +269,3 @@ and rebuild the bundle with the Metro cache reset.
 Automatic HTTP spans cover the requests that pass through OkHttp on Android
 and URLSession on iOS. Validate representative application requests on both
 platforms.
-
-EDOT React Native does not add automatic React Navigation, Redux, gesture, or
-screen-coordinate instrumentation, and does not process source maps.
