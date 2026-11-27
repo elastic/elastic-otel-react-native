@@ -646,15 +646,15 @@ test('scroll respects interaction and entry options and preserves non-functions'
   expect(mixed).toContain('__wrapPressHandler');
   expect(mixed.match(/_elasticOtelWrapScrollHandler\(/g)).toHaveLength(1);
   const source = "import { ScrollView } from 'react-native'; <ScrollView />;";
-  expect(transform(source, { interactions: { enabled: false } })).not.toContain(
-    '__wrapScrollHandler',
+  expect(transform(source, { interactions: { enabled: false } })).not.toMatch(
+    /__(wrap|create)ScrollHandler/,
   );
   expect(
     transform(
       source,
       components({ name: 'ScrollView', from: 'react-native', enabled: false }),
     ),
-  ).not.toContain('__wrapScrollHandler');
+  ).not.toMatch(/__(wrap|create)ScrollHandler/);
   const nonFunction = transform(
     "import { ScrollView } from 'react-native'; <ScrollView onScrollEndDrag={false} />;",
   );
