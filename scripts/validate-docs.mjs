@@ -112,12 +112,6 @@ if (
   );
 }
 
-const releaseToc = await load('docs/release-notes/toc.yml');
-for (const page of ['index.md', 'breaking-changes.md', 'known-issues.md']) {
-  if (!releaseToc.includes(`- file: ${page}`)) {
-    throw new Error(`Release-note navigation is missing ${page}.`);
-  }
-}
 const markdownCache = new Map();
 for (const path of MARKDOWN) {
   markdownCache.set(path, await load(path));

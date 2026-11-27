@@ -28,12 +28,6 @@ To check for security updates, go to [Security announcements for the Elastic sta
 
 % next_release_notes
 
-## Next version [edot-react-native-versionext-release-notes]
-
-### Features and enhancements [edot-react-native-versionext-features-enhancements]
-
-- Default `data_stream.dataset` to `react_native` for resources configured by the React Native bridge. This replaces an inherited native SDK dataset. An explicit dataset in React Native configuration overrides the default. Refer to [the migration instructions](breaking-changes.md#react-native-dataset).
-
 ## 0.2.0 [edot-react-native-020-release-notes]
 
 **Release date:** November 12, 2026

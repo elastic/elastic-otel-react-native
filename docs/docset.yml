@@ -4,7 +4,6 @@ products:
 cross_links:
   - elastic-otel-react-native
   - docs-content
-  - elastic-agent
   - integration-docs
 toc:
   - toc: release-notes
