@@ -220,13 +220,15 @@ final class AgentLifecycle<Agent> {
   }
 }
 
-// Adds the configured attributes to the resource EDOT iOS builds, keeping
-// every attribute it already holds.
+// Replaces the native dataset with the React Native default, then applies
+// explicit bridge attributes. Other native resource attributes are preserved.
 func resourceAttributesInterceptor(
   _ attributes: [String: String]
 ) -> any Interceptor<Resource> {
   ClosureInterceptor<Resource> { resource in
     resource.merging(
+      other: Resource(attributes: ["data_stream.dataset": .string("react_native")])
+    ).merging(
       other: Resource(attributes: attributes.mapValues { .string($0) })
     )
   }

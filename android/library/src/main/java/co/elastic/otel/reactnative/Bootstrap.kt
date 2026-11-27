@@ -170,11 +170,12 @@ internal object BootstrapValidator {
         }
 }
 
-// Adds the configured attributes to the resource EDOT Android builds, keeping
-// every attribute it already holds.
+// Replaces the native dataset with the React Native default, then applies
+// explicit bridge attributes. Other native resource attributes are preserved.
 internal fun resourceAttributesInterceptor(attributes: Map<String, String>): Interceptor<Resource> =
     Interceptor { resource ->
         resource.toBuilder()
+            .put("data_stream.dataset", "react_native")
             .apply { attributes.forEach { (key, value) -> put(key, value) } }
             .build()
     }
@@ -234,9 +235,7 @@ object ElasticOtelReactNative {
                     validated.sessionSampleRate?.let(::setSessionSampleRate)
                     validated.serviceVersion?.let(::setServiceVersion)
                     validated.deploymentEnvironmentName?.let(::setDeploymentEnvironment)
-                    if (validated.otherResourceAttributes.isNotEmpty()) {
-                        setResourceInterceptor(resourceAttributesInterceptor(validated.otherResourceAttributes))
-                    }
+                    setResourceInterceptor(resourceAttributesInterceptor(validated.otherResourceAttributes))
                 }
                 .build()
         }
