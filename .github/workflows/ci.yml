@@ -54,11 +54,6 @@ jobs:
       ORG_GRADLE_PROJECT_reactNativeArchitectures: x86_64
     steps:
       - uses: actions/checkout@v7
-      # Removes unused preinstalled toolchains; the API 36 emulator needs the space.
-      - name: Free disk space for the Android emulator
-        run: |
-          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/.ghcup
-          df -h /
       - name: npm ci
         run: npm ci
       - name: npm run validate:expo:android
@@ -68,13 +63,19 @@ jobs:
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
-      # The API level matches the Expo fixture's targetSdkVersion.
+      # API 26 is the Expo fixture's minSdkVersion.
       - name: npm run test:expo-launch:android
         uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
         with:
-          api-level: 36
+          api-level: 26
           arch: x86_64
           script: npm run test:expo-launch:android
+      # Shows whether a failed job ran out of disk space or inodes.
+      - name: Report disk usage after a failure
+        if: failure()
+        run: |
+          df -h /
+          df -i /
 
   expo-ios:
     runs-on: macos-latest

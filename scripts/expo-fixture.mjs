@@ -402,7 +402,17 @@ async function launchAndroid() {
     console.log(`Launching Android ${release.name} Release: ${release.apk}`);
     try {
       adb('install', '-r', release.apk);
-      adb('logcat', '-c');
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        const { status, output } = run('adb', ['-s', serial, 'logcat', '-c']);
+        if (status === 0) {
+          break;
+        }
+        assert.ok(
+          attempt < 3,
+          `adb logcat -c failed.\n${output.slice(-8_000)}`,
+        );
+        await sleep(2_000);
+      }
       adb('shell', 'am', 'start', '-W', '-n', `${APP_ID}/.MainActivity`);
       await waitForReady(
         () => adb('logcat', '-d', '-s', 'ReactNativeJS', 'AndroidRuntime'),
