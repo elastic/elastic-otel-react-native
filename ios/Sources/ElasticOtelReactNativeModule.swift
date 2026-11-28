@@ -110,6 +110,24 @@ public final class ElasticOtelReactNativeModule: NSObject {
     }
   }
 
+  @objc(recordWidgetScroll:widgetName:timestamp:resolver:rejecter:)
+  public func recordWidgetScroll(
+    _ widgetId: String,
+    widgetName: String?,
+    timestamp: Double,
+    resolver resolve: RCTPromiseResolveBlock,
+    rejecter reject: RCTPromiseRejectBlock
+  ) {
+    settle(resolve, reject: reject) {
+      try interactions.recordWidgetScroll(
+        widgetId: widgetId,
+        widgetName: widgetName,
+        timestamp: timestamp
+      )
+      return nil
+    }
+  }
+
   private func settle(
     _ resolve: RCTPromiseResolveBlock,
     reject: RCTPromiseRejectBlock,

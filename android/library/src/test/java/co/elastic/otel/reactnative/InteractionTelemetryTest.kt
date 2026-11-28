@@ -82,6 +82,34 @@ class InteractionTelemetryTest {
     }
 
     @Test
+    fun emitsWidgetScrollEventWithTimestampScopeAndAttributes() {
+        telemetry.recordWidgetScroll("forecast.list", "Forecast", 1234.0)
+
+        val event = logs.finishedLogRecordItems.single()
+        assertEquals("elastic.app.widget.scroll", event.eventName)
+        assertEquals(1_234_000_000, event.timestampEpochNanos)
+        assertEquals(
+            INTERACTION_INSTRUMENTATION_SCOPE,
+            event.instrumentationScopeInfo.name,
+        )
+        assertEquals(
+            "forecast.list",
+            event.attributes.get(AttributeKey.stringKey("app.widget.id")),
+        )
+        assertEquals(
+            "elastic.app.widget.scroll",
+            event.attributes.get(AttributeKey.stringKey("otel.event.name")),
+        )
+        assertEquals(
+            "Forecast",
+            event.attributes.get(AttributeKey.stringKey("app.widget.name")),
+        )
+        assertEquals(3, event.attributes.size())
+        assertFalse(event.spanContext.isValid)
+        assertNull(event.bodyValue)
+    }
+
+    @Test
     fun omitsOptionalName() {
         telemetry.recordWidgetClick("forecast.fetch", null, 1234.0)
 

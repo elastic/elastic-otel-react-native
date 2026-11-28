@@ -79,6 +79,19 @@ class ElasticOtelReactNativeModule(
         }
     }
 
+    @ReactMethod
+    fun recordWidgetScroll(
+        widgetId: String,
+        widgetName: String?,
+        timestamp: Double,
+        promise: Promise,
+    ) {
+        resolve(promise) {
+            interactions.recordWidgetScroll(widgetId, widgetName, timestamp)
+            null
+        }
+    }
+
     private fun <T> resolve(promise: Promise, block: () -> T) {
         try {
             promise.resolve(block())

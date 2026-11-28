@@ -19,6 +19,7 @@ import OpenTelemetryApi
 let interactionInstrumentationScope =
   "@elastic/otel-react-native.interactions"
 let widgetClickEventName = "app.widget.click"
+let widgetScrollEventName = "elastic.app.widget.scroll"
 
 final class InteractionTelemetry {
   private let openTelemetry: () throws -> OpenTelemetry
@@ -32,8 +33,35 @@ final class InteractionTelemetry {
     widgetName: String?,
     timestamp: Double
   ) throws {
+    try recordWidgetEvent(
+      eventName: widgetClickEventName,
+      widgetId: widgetId,
+      widgetName: widgetName,
+      timestamp: timestamp
+    )
+  }
+
+  func recordWidgetScroll(
+    widgetId: String,
+    widgetName: String?,
+    timestamp: Double
+  ) throws {
+    try recordWidgetEvent(
+      eventName: widgetScrollEventName,
+      widgetId: widgetId,
+      widgetName: widgetName,
+      timestamp: timestamp
+    )
+  }
+
+  private func recordWidgetEvent(
+    eventName: String,
+    widgetId: String,
+    widgetName: String?,
+    timestamp: Double
+  ) throws {
     var attributes = [
-      "otel.event.name": AttributeValue.string(widgetClickEventName),
+      "otel.event.name": AttributeValue.string(eventName),
       "app.widget.id": AttributeValue.string(
         try BridgeInput.widgetId(widgetId)
       )
@@ -48,7 +76,7 @@ final class InteractionTelemetry {
       )
       .build()
       .logRecordBuilder()
-      .setEventName(widgetClickEventName)
+      .setEventName(eventName)
       .setTimestamp(try BridgeInput.eventTimestamp(timestamp))
       .setSpanContext(invalidSpanContext)
       .setAttributes(attributes)

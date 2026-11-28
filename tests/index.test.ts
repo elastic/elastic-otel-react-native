@@ -21,6 +21,7 @@ const mockNativeBridge = {
   endSpan: jest.fn(),
   getStatus: jest.fn(),
   recordWidgetClick: jest.fn(),
+  recordWidgetScroll: jest.fn(),
   startSpan: jest.fn(),
 };
 
@@ -32,11 +33,14 @@ jest.mock('react-native', () => ({
 
 import { NativeModules } from 'react-native';
 import {
+  __createScrollHandler,
   __widgetContent,
   __wrapPressHandler,
+  __wrapScrollHandler,
   emitLog,
   getStatus,
   recordWidgetClick,
+  recordWidgetScroll,
   startSpan,
 } from '../src';
 
@@ -45,6 +49,7 @@ beforeEach(() => {
   mockNativeBridge.startSpan.mockResolvedValue('span-1');
   mockNativeBridge.emitLog.mockResolvedValue(undefined);
   mockNativeBridge.recordWidgetClick.mockResolvedValue(undefined);
+  mockNativeBridge.recordWidgetScroll.mockResolvedValue(undefined);
 });
 
 test('legacy and omitted span options create a root span', async () => {
@@ -145,6 +150,25 @@ test('recordWidgetClick validates and delegates a true interaction request', asy
   expect(mockNativeBridge.recordWidgetClick).toHaveBeenCalledWith(
     'forecast.fetch',
     'Fetch forecast',
+    1234,
+  );
+});
+
+test('recordWidgetScroll validates and delegates a true interaction request', async () => {
+  await expect(
+    recordWidgetScroll({ widgetId: ' ', timestamp: 1234 }),
+  ).rejects.toBeInstanceOf(TypeError);
+  expect(mockNativeBridge.recordWidgetScroll).not.toHaveBeenCalled();
+
+  await recordWidgetScroll({
+    widgetId: 'forecast.list',
+    widgetName: 'Forecast',
+    timestamp: 1234,
+  });
+
+  expect(mockNativeBridge.recordWidgetScroll).toHaveBeenCalledWith(
+    'forecast.list',
+    'Forecast',
     1234,
   );
 });
@@ -382,4 +406,18 @@ test('bridge-unavailable errors are platform-neutral', () => {
   } finally {
     NativeModules.ElasticOtelReactNative = saved;
   }
+});
+
+test('the injected scroll handler is stable for an unchanged identity', () => {
+  const first = __createScrollHandler('FlatList', ['items'], ['Items']);
+  const rerendered = __createScrollHandler('FlatList', ['items'], ['Items']);
+  expect(typeof first).toBe('function');
+  expect(rerendered).toBe(first);
+});
+
+test('scroll preserves an app-supplied undefined handler', () => {
+  expect(
+    __wrapScrollHandler(undefined, 'AppList', ['items'], ['Items']),
+  ).toBeUndefined();
+  expect(mockNativeBridge.recordWidgetScroll).not.toHaveBeenCalled();
 });

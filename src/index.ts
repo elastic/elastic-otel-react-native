@@ -32,6 +32,11 @@ type NativeBridge = {
     widgetName: string | null,
     timestamp: number,
   ): Promise<void>;
+  recordWidgetScroll(
+    widgetId: string,
+    widgetName: string | null,
+    timestamp: number,
+  ): Promise<void>;
 };
 
 function bridge(): NativeBridge {
@@ -69,6 +74,8 @@ export type RecordWidgetClickOptions = {
   /** Epoch timestamp in milliseconds captured when the interaction occurred. */
   timestamp: number;
 };
+
+export type RecordWidgetScrollOptions = RecordWidgetClickOptions;
 
 function optionalHandle(
   options: unknown,
@@ -131,7 +138,7 @@ export async function emitLog(
 export async function recordWidgetClick(
   options: RecordWidgetClickOptions,
 ): Promise<void> {
-  const validated = widgetClickOptions(options);
+  const validated = widgetOptions(options, 'click');
   return bridge().recordWidgetClick(
     validated.widgetId,
     validated.widgetName,
@@ -139,13 +146,29 @@ export async function recordWidgetClick(
   );
 }
 
-type PressHandler = (...args: never[]) => unknown;
+export async function recordWidgetScroll(
+  options: RecordWidgetScrollOptions,
+): Promise<void> {
+  const validated = widgetOptions(options, 'scroll');
+  return bridge().recordWidgetScroll(
+    validated.widgetId,
+    validated.widgetName,
+    validated.timestamp,
+  );
+}
 
-// One wrapper per handler, widget id, and widget name, so a memoized
+type InteractionHandler = (...args: never[]) => unknown;
+
+const scrollNoop = () => {};
+
+// One wrapper per handler, interaction, widget id, and widget name, so a memoized
 // component keeps a stable prop while each element records its own identity.
 // Each handler's map keeps its most recently used MAX_WRAPPERS_PER_HANDLER
 // entries, in Map insertion order.
-const pressWrappers = new WeakMap<object, Map<string, PressHandler>>();
+const interactionWrappers = new WeakMap<
+  object,
+  Map<string, InteractionHandler>
+>();
 
 // A long-lived handler would otherwise keep one wrapper per distinct identity
 // for its whole lifetime. 500 is above the rows a default-window FlatList keeps
@@ -180,26 +203,72 @@ export function __wrapPressHandler<T>(
   widgetIdCandidates: readonly unknown[],
   widgetNameCandidates: readonly unknown[],
 ): T {
+  return wrapInteractionHandler(
+    handler,
+    componentName,
+    widgetIdCandidates,
+    widgetNameCandidates,
+    'click',
+  );
+}
+
+export function __wrapScrollHandler<T>(
+  handler: T,
+  componentName: string,
+  widgetIdCandidates: readonly unknown[],
+  widgetNameCandidates: readonly unknown[],
+): T {
+  return wrapInteractionHandler(
+    handler,
+    componentName,
+    widgetIdCandidates,
+    widgetNameCandidates,
+    'scroll',
+  );
+}
+
+export function __createScrollHandler(
+  componentName: string,
+  widgetIdCandidates: readonly unknown[],
+  widgetNameCandidates: readonly unknown[],
+): InteractionHandler {
+  return __wrapScrollHandler(
+    scrollNoop,
+    componentName,
+    widgetIdCandidates,
+    widgetNameCandidates,
+  );
+}
+
+function wrapInteractionHandler<T>(
+  handler: T,
+  componentName: string,
+  widgetIdCandidates: readonly unknown[],
+  widgetNameCandidates: readonly unknown[],
+  interaction: 'click' | 'scroll',
+): T {
   if (typeof handler !== 'function') {
     return handler;
   }
 
   const widgetId = firstValue(widgetIdCandidates) ?? componentName;
   const widgetName = firstValue(widgetNameCandidates);
-  let wrappers = pressWrappers.get(handler);
+  let wrappers = interactionWrappers.get(handler);
   if (!wrappers) {
     wrappers = new Map();
-    pressWrappers.set(handler, wrappers);
+    interactionWrappers.set(handler, wrappers);
   }
 
-  const key = JSON.stringify([widgetId, widgetName]);
+  const key = JSON.stringify([interaction, widgetId, widgetName]);
   let wrapper = wrappers.get(key);
   if (wrapper) {
     // Re-insert the entry to mark it as the most recently used.
     wrappers.delete(key);
   } else {
     wrapper = function (this: unknown, ...args: never[]) {
-      void recordWidgetClick({
+      const record =
+        interaction === 'click' ? recordWidgetClick : recordWidgetScroll;
+      void record({
         widgetId,
         ...(widgetName === null ? {} : { widgetName }),
         timestamp: Date.now(),
@@ -214,7 +283,10 @@ export function __wrapPressHandler<T>(
   return wrapper as T;
 }
 
-function widgetClickOptions(options: unknown): {
+function widgetOptions(
+  options: unknown,
+  interaction: 'click' | 'scroll',
+): {
   widgetId: string;
   widgetName: string | null;
   timestamp: number;
@@ -225,7 +297,9 @@ function widgetClickOptions(options: unknown): {
     Array.isArray(options) ||
     ![Object.prototype, null].includes(Object.getPrototypeOf(options))
   ) {
-    throw new TypeError('Widget click options must be a plain object.');
+    throw new TypeError(
+      `Widget ${interaction} options must be a plain object.`,
+    );
   }
 
   const keys = Object.keys(options);
@@ -233,7 +307,7 @@ function widgetClickOptions(options: unknown): {
     keys.some((key) => !['widgetId', 'widgetName', 'timestamp'].includes(key))
   ) {
     throw new TypeError(
-      'Widget click options may contain only widgetId, widgetName, and timestamp.',
+      `Widget ${interaction} options may contain only widgetId, widgetName, and timestamp.`,
     );
   }
 

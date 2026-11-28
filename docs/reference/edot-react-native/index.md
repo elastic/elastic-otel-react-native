@@ -87,19 +87,23 @@ The [`setup-android`](getting-started.md#run-automated-android-setup) and
 lines your app needs. React Native autolinking registers the package on both
 platforms, so you do not register it by hand.
 
-### Widget tap events
+### Widget interaction events
 
 An opt-in Babel plugin records taps on React Native's buttons, pressables, and
 touchables, and on the app and library components you list, as
 `app.widget.click` events. Each event identifies the widget from its props or
 visible text. See
 [Widget tap events](automatic-instrumentation.md#widget-tap-events).
+The plugin also records one `elastic.app.widget.scroll` event at the end of a drag
+on React Native's ScrollView-family components. See
+[Widget scroll events](automatic-instrumentation.md#widget-scroll-events).
 
 ### Manual spans and logs
 
 A promise-based JavaScript API reports readiness, creates named spans with
 parent and child relationships, emits logs with a severity, and records widget
-clicks. See [Manual instrumentation](manual-instrumentation.md).
+clicks and scrolls. See [Manual instrumentation](manual-instrumentation.md)
+and [Widget scroll events](automatic-instrumentation.md#widget-scroll-events).
 
 ### Crash reporting
 
