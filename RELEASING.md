@@ -15,7 +15,7 @@ the preparation PR is what publishes.
 Use either path:
 
 - Ask an agent to prepare the release with the
-  [`react-native-release-wizard`](skills/react-native-release-wizard/SKILL.md)
+  [`react-native-release-wizard`](.agents/skills/react-native-release-wizard/SKILL.md)
   skill. It proposes the notes and resulting version, then dispatches after
   you approve.
 - Open the
