@@ -29,6 +29,10 @@ public final class ElasticOtelReactNativeModule: NSObject {
     openTelemetry: ElasticOtelReactNativeModule.readyOpenTelemetry
   )
 
+  private let crashes = CrashTelemetry(
+    openTelemetry: ElasticOtelReactNativeModule.readyOpenTelemetry
+  )
+
   private static func readyOpenTelemetry() throws -> OpenTelemetry {
     try ElasticOtelReactNative.requireReady()
     return OpenTelemetry.instance
@@ -108,6 +112,23 @@ public final class ElasticOtelReactNativeModule: NSObject {
       )
       return nil
     }
+  }
+
+  @objc(recordJavaScriptCrash:message:stacktrace:timestamp:)
+  public func recordJavaScriptCrash(
+    _ type: String,
+    message: String,
+    stacktrace: String,
+    timestamp: Double
+  ) -> NSNumber {
+    NSNumber(
+      value: crashes.recordJavaScriptCrash(
+        type: type,
+        message: message,
+        stacktrace: stacktrace,
+        timestamp: timestamp
+      )
+    )
   }
 
   private func settle(

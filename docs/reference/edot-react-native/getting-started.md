@@ -240,6 +240,14 @@ because configuration and credentials belong to your application. React Native
 autolinking registers the package on both platforms; do not register it
 manually.
 
+## Capture JavaScript errors
+
+To record uncaught fatal JavaScript exceptions, call `initialize()` from
+`@elastic/otel-react-native` in your app entry file, before
+`AppRegistry.registerComponent`. See
+[Capture JavaScript errors](configuration.md#capture-javascript-errors) for the
+example, the options, and what it records.
+
 ## Start sending telemetry
 
 With EDOT React Native initialized, your app sends telemetry to the OTLP

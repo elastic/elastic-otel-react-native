@@ -251,9 +251,42 @@ On Android, the EDOT Android crash plugin, which `setup-android` or the Expo
 config plugin applies, records uncaught JVM exceptions and attempts to flush
 the logs before the app terminates. EDOT iOS enables native crash reporting
 by default, stores a crash report on the device, and exports it the next time
-the app starts. Crash reporting has no JavaScript setting.
+the app starts.
 
 Crash events appear in the "Crashes" section of each platform's Application
 Overview dashboard. Refer to
 [Visualize telemetry](getting-started.md#visualize-telemetry) to install and
 open the dashboards.
+
+### Capture JavaScript errors
+
+```{applies_to}
+edot_react_native: preview 0.3.0
+```
+
+EDOT React Native records each uncaught fatal JavaScript exception as an
+`app.crash` log record with `elastic.exception.source` set to `javascript`.
+Call `initialize` in your app entry file, before
+`AppRegistry.registerComponent`:
+
+```ts
+import { AppRegistry } from 'react-native';
+import { initialize } from '@elastic/otel-react-native';
+import App from './App';
+
+initialize().catch((error) => console.warn(error)); // <1>
+
+AppRegistry.registerComponent('MyApp', () => App);
+```
+
+1. Starts capturing once native bootstrap has run. The promise rejects when
+   native bootstrap has not run or the package is not linked.
+
+Capture is on by default. To turn it off, call
+`initialize({ captureErrors: false })`.
+
+The capture records the error and then calls the error handler that was
+installed before it, so whether your app terminates does not change.
+
+Errors thrown before the promise returned by `initialize()` resolves are not
+captured.

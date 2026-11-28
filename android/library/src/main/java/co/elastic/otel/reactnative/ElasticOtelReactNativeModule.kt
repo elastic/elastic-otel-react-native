@@ -32,6 +32,7 @@ class ElasticOtelReactNativeModule(
     private val openTelemetry = { ElasticOtelReactNative.requireAgent().getOpenTelemetry() }
     private val telemetry = ManualTelemetry(openTelemetry = openTelemetry)
     private val interactions = InteractionTelemetry(openTelemetry = openTelemetry)
+    private val crashes = CrashTelemetry(openTelemetry = openTelemetry)
 
     override fun getName(): String = NAME
 
@@ -78,6 +79,14 @@ class ElasticOtelReactNativeModule(
             null
         }
     }
+
+    @ReactMethod(isBlockingSynchronousMethod = true)
+    fun recordJavaScriptCrash(
+        type: String,
+        message: String,
+        stacktrace: String,
+        timestamp: Double,
+    ): Boolean = crashes.recordJavaScriptCrash(type, message, stacktrace, timestamp)
 
     private fun <T> resolve(promise: Promise, block: () -> T) {
         try {

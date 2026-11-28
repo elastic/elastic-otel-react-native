@@ -61,6 +61,13 @@ internal object BridgeInput {
         return value
     }
 
+    fun exceptionType(value: String): String {
+        if (value.isBlank()) {
+            throw BootstrapException("An exception type is required.")
+        }
+        return value
+    }
+
     fun eventTimestamp(value: Double): Double {
         if (!value.isFinite()) {
             throw BootstrapException("A finite event timestamp is required.")
